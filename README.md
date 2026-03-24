@@ -1,159 +1,108 @@
 # Genius Moments Wall
 
-A **touch-screen kiosk application** for showcasing **Genius Sports** moments — game-winning plays, upsets, controversy, and other live-detected events — with branded creatives and sponsor integration previews. Built for fixed **1920×1080** displays (e.g., in-venue walls, broadcast control rooms, or trade-show demos).
+A full-screen touch-first kiosk experience for exploring premium sports moment packages. The current app is a single-page interactive journey: idle attract -> sport selection bubbles -> orbiting moment bubbles -> moment detail panel.
 
 ---
 
 ## Overview
 
-**Genius Moments Wall** demonstrates the **Genius Moment Engine**: real-time detection of high-stakes sporting moments (buzzer beaters, upsets, overtime, elimination games, championship clinches, momentum shifts, hero performances, and review/controversy) with three creative formats — **CTV**, **Social**, and **Interstitial** (see [Creative formats](#creative-formats-per-moment)). The app runs in landscape on large-format touch screens: an idle attract loop, **category** selection, a per-category moment and workflow screen, optional cinematic “Moment Detected” transitions, and detail views that explain trigger logic and show creative previews.
+This build demonstrates a single continuous interaction model for live-demo environments (events, sales floors, control rooms, and in-venue displays). Users engage from an attract screen, select one of two sport hubs (**NFL** or **March Madness**), then browse moment packages in an animated orbit around the selected hub.
 
-**Target environments:** In-venue digital signage, broadcast studios, sales demos, events. **Primary input:** Touch (mouse and keyboard also reset the idle timer). **Design resolution:** 1920×1080; the UI scales to fit other resolutions via a fixed stage.
+The app is designed for **1920x1080 landscape** and scales the fixed stage to the viewport.
+
+---
+
+## Current Experience Flow
+
+1. **Idle attract**
+   - Full-screen branded entry with animated background and data chips.
+   - Tap/click anywhere to begin.
+2. **Single-screen interactive canvas**
+   - "Premium Moments Packages" headline.
+   - Two large sport bubbles: **NFL** and **March Madness**.
+3. **Sport expansion**
+   - Selected sport bubble moves to center, scales down, and reveals orbiting moment bubbles.
+4. **Moment detail overlay**
+   - Tap a moment bubble to open a modal panel with trigger + package description.
+   - Close panel to return to the expanded sport view.
+5. **Back / Reset**
+   - **Back** collapses the expanded sport and returns to the two-sport selection state.
+   - **Reset** (kiosk control) returns all the way to idle attract.
 
 ---
 
 ## Features
 
-### Core experience
-
-- **Idle attract screen** — Animated “touch to explore” loop with gradient background, floating data chips, and rotating copy. Tap or click anywhere to open **category selection**.
-- **Category grid** — Two tiles (**Championship Race**, **Rivalry Matchups**) with descriptions, example moments, and sports/tournament pills. Choosing a category opens that category’s **moment / workflow** screen.
-- **Category workflow screen** — Category narrative, activation copy, example-moment bullets, sports/tournament pills, and a large **primary workflow** card. That CTA starts the scripted flow for the category (see [Cinematic routing](#cinematic-routing)). Moment membership and ordering per category live in `categories[].moments` in data even though the current UI does not expose a separate tile per moment.
-- **Moment detail** — Left column: moment name, hook, detection trigger, proof-point stats (discrete path) or **season activation** visualization (thematic path). Right column: three creative format tabs with previews.
-- **Idle timeout** — Returns to the attract screen after **45 seconds** of no touch, mouse, or keyboard input (configurable in `src/tokens.ts`).
-- **Orientation guard** — On narrow viewports (portrait), shows a “Rotate Device” message; the main UI is intended for landscape.
-- **Kiosk controls** — Optional reset button (top-right) for staff to return to idle from any screen.
-
-### Categories and moments
-
-Categories are defined in `src/data/moments.ts` as `categories[]`. Each category owns a subset of moments:
-
-| Category | Focus | Example moments in the demo |
-|----------|--------|-----------------------------|
-| **Championship Race** | Title-race beats: clinchers, last-second drama, elimination, overtime | Championship, Buzzer Beater, Elimination, Overtime |
-| **Rivalry Matchups** | High-intensity rivalry-driven beats | Controversy, Momentum Shift, Hero Performance, Review / Controversy |
-
-The global `moments[]` array holds full **Moment** definitions (copy, triggers, creatives). Categories only reference which moments appear in each path.
-
-### Cinematic routing
-
-From the **category workflow** CTA (`SelectMomentScreen` → `App.tsx`), the app can open **single-video cinematic**, **multi-video cinematic**, or **detail** directly:
-
-| Situation | What happens |
-|-----------|----------------|
-| **Championship Race** — workflow CTA | **Multi-video** cinematic using the **Controversy** moment’s clips (shared demo path; see comment in `SelectMomentScreen.tsx`). |
-| **Rivalry Matchups** — workflow CTA (entry moment **Controversy**) | **Multi-video** cinematic (`ControversyCinematicTransition` + stacked clips). |
-| `onSelectMoment(moment)` with **no** `isDiscrete` / `useMultiCinematic` | Opens **detail** immediately (discrete variant). |
-| `isDiscrete: true` | **Single-video** cinematic (`CinematicTransition`), then detail with pause time / optional frame capture. |
-| `isDiscrete: false` | **Detail** with **thematic** variant (e.g. season activation viz). |
-
-The root flow is **category → workflow screen** (not a single flat moment carousel). `MomentGrid` / `MomentsTextCarousel` remain in the repo but are **not** mounted from `App.tsx` in the current wiring.
-
-### Cinematic transitions
-
-- **Single-video cinematic** (`CinematicTransition`) — One full-bleed video; phases include playing → detecting → “Moment Detected” → **Activating Audiences** (vertical reel via `ActivatingAudiencesReel`) → handoff to detail with `videoPauseTime` and optional `capturedFrameDataUrl`.
-- **Multi-video cinematic** (`ControversyCinematicTransition` + `ControversyStackedVideos`) — Multiple clips (e.g. soccer trims) with “Moment Detected” between segments, then transition to detail.
-
-### Creative formats (per moment)
-
-On the detail screen, format buttons are labeled **1. CTV**, **2. Social**, **3. Interstitial**. They map to the same three preview layouts as before (broadcast-style overlay, branded frame, full takeover), driven by each moment’s `creatives` tuple in `moments.ts`.
+- **Single-page architecture** - No route/page changes during core flow; transitions are animated within one screen tree in `App.tsx`.
+- **Touch-first interactions** - Core controls respond to `onTouchStart` and `onClick`.
+- **Idle timeout** - Returns to idle after `45_000ms` of inactivity (`touchstart`, `mousedown`, `keydown`).
+- **Fixed-stage scaling** - `Stage` preserves visual layout by scaling a 1920x1080 design surface.
+- **Orientation guard** - Shows rotate prompt in unsupported orientations.
+- **Kiosk reset control** - Quick reset button for staffed demos.
+- **Animated orbit system** - Moment bubbles fan out in one or two rings depending on moment count, with deterministic size variation for visual texture.
 
 ---
 
-## Tech stack
+## Data Model
 
-| Layer | Technology |
-|-------|------------|
-| **Runtime** | React 18, TypeScript |
-| **Build** | Vite 5 — dev server (HMR) and production build |
-| **Styling** | Tailwind CSS 3, inline styles for layout |
-| **Animation** | Framer Motion 11 — screen transitions, AnimatePresence, motion components |
-| **Fonts** | Inter (Google Fonts), Klarheit (serif) where used |
+The live UI is driven by `src/data/sportsData.ts`.
 
-**Node:** 18+ recommended. Package manager: npm (or yarn/pnpm).
+### `SportData`
+
+- `id`: sport identifier (used for anchor/selection logic)
+- `name`: display label inside the sport bubble
+- `bubbleImage`: background image used on the bubble
+- `gradient`, `glow`: visual treatment values
+- `moments`: list of `SportMoment`
+
+### `SportMoment`
+
+- `id`: stable key
+- `name`: bubble + panel title
+- `trigger`: trigger condition shown in detail panel
+- `description`: package narrative copy
+- `examples?`: optional chips shown below description
 
 ---
 
-## Project structure
+## Project Structure (Relevant)
 
-```
-├── index.html              # Entry HTML; viewport, theme-color, kiosk-friendly CSS
-├── package.json
-├── vite.config.ts
-├── tailwind.config.js
-├── postcss.config.js
-├── tsconfig.json
-├── public/                 # Static assets (videos, images, SVG)
+```text
+├── public/
 │   ├── genius-sports-logo.png
-│   ├── Moments Sample.mp4       # Single-video cinematic
-│   ├── buzzer-beater.jpg, championship.jpg, rivalry.jpeg, soccer-thumbnail.png
-│   ├── soccer-trim-1.mp4 … soccer-trim-3.mp4   # Multi-video cinematic
-│   ├── soccer-1.mp4, soccer-2.mp4, soccer-3.mp4
-│   ├── fan-cloud.svg
-│   └── …
+│   ├── nfl.jpg
+│   └── march_madness.png
 └── src/
-    ├── main.tsx
-    ├── App.tsx             # Screens: idle | select-category | select-moment |
-    │                       #   cinematic | cinematic-multi | detail; idle timer; handlers
-    ├── index.css
-    ├── tokens.ts           # Colors, IDLE_TIMEOUT_MS, cinematic timing
+    ├── App.tsx                         # Single-screen state machine + orchestration
+    ├── tokens.ts                       # IDLE_TIMEOUT_MS and shared tokens
     ├── data/
-    │   └── moments.ts      # Moment[], Category[], categories, moments
+    │   └── sportsData.ts               # Live sport + moment content
     └── components/
-        ├── Stage.tsx
-        ├── OrientationGuard.tsx
+        ├── IdleAttract.tsx             # Entry attract screen
+        ├── SportBubble.tsx             # Large sport hub bubble
+        ├── MomentBubble.tsx            # Orbiting moment bubble
+        ├── MomentDetailPanel.tsx       # Modal detail panel
         ├── KioskControls.tsx
-        ├── IdleAttract.tsx
-        ├── AnimatedBarsBackground.tsx
-        ├── FloatingDataChips.tsx
-        ├── CategoryGrid.tsx          # “Select a category”
-        ├── CategoryTile.tsx          # Category card + preview image helpers
-        ├── SelectMomentScreen.tsx    # Per-category moment list + workflow CTA
-        ├── MomentGrid.tsx            # Legacy grid (not wired in App)
-        ├── MomentTile.tsx
-        ├── MomentsTextCarousel.tsx
-        ├── CinematicTransition.tsx
-        ├── ActivatingAudiencesReel.tsx
-        ├── ActivatingAudiencesStepTwoPanel.tsx
-        ├── ControversyCinematicTransition.tsx
-        ├── ControversyStackedVideos.tsx
-        ├── MomentDetail.tsx
-        ├── CreativePreview.tsx
-        ├── SeasonActivationViz.tsx
-        ├── AnimatedFanCloud.tsx
-        └── OwnTheSeasonExplanation.tsx
+        ├── OrientationGuard.tsx
+        └── Stage.tsx
 ```
 
----
-
-## Configuration
-
-### Idle and cinematic timing (`src/tokens.ts`)
-
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `IDLE_TIMEOUT_MS` | `45_000` | Milliseconds of no input before returning to idle. |
-| `CINEMATIC_DETECTING_DELAY_MS` | `3_000` | Delay before showing “Moment Detected” after “Detecting Moment…”. |
-| `CINEMATIC_DETECTED_DISPLAY_MS` | `1_500` | Time “Moment Detected” is shown before the activating phase. |
-| `CINEMATIC_ACTIVATING_SCROLL_MS` | `6_000` | Duration of the vertical reel scroll in the activating phase. |
-| `CINEMATIC_ACTIVATING_HOLD_MS` | `1_000` | Hold on the selected audience ID before transitioning to detail. |
-| `CONTROVERSY_DETECTED_DISPLAY_MS` | `1_000` | Multi-video cinematic: time “Moment Detected” is shown between segments. |
-
-### Moments and categories (`src/data/moments.ts`)
-
-- **Moment:** `id`, `name`, `label`, `hook`, `trigger`, `accentColor`, `creatives` (tuple of three **Creative**).
-- **Creative:** `id`, `title`, `description`, `preview` (headline, stat, score, time, badge, cta, team1/2, metric, note). Tab labels in the UI are fixed (**CTV / Social / Interstitial**) in `CreativePreview.tsx`; titles in data are used in preview chrome where relevant.
-- **Category:** `id`, `name`, `description`, `moments`, `activationCopy`, `exampleMoments`, `sportsAndTournaments`, optional `workflowCtaLabel`.
-
-Edit `moments` and `categories` to change copy, which moments appear per category, and creative preview content.
+> Note: Legacy components/data from earlier multi-screen/cinematic flows still exist in the repo, but the active experience is the single-page flow above.
 
 ---
 
-## Getting started
+## Tech Stack
 
-### Prerequisites
+- React 18 + TypeScript
+- Vite 5
+- Framer Motion 11
+- Tailwind CSS (plus inline styles for precise kiosk layout)
 
-- **Node.js 18+** and npm (or yarn/pnpm).
+Node 18+ recommended.
+
+---
+
+## Getting Started
 
 ### Install
 
@@ -161,19 +110,13 @@ Edit `moments` and `categories` to change copy, which moments appear per categor
 npm install
 ```
 
-### Development
+### Run locally
 
 ```bash
 npm run dev
 ```
 
-Opens the app at `http://localhost:5173` (or the port Vite prints). Touch, mouse, and keyboard events reset the idle timer.
-
-**Demo mode** — Skip the idle screen and start on **category selection**:
-
-```
-http://localhost:5173?demo=1
-```
+Open the local URL printed by Vite (usually `http://localhost:5173`).
 
 ### Build
 
@@ -181,27 +124,30 @@ http://localhost:5173?demo=1
 npm run build
 ```
 
-Runs `tsc` then `vite build`. Output is in **`dist/`**. Serve that folder over HTTP for kiosk deployment.
-
 ### Preview production build
 
 ```bash
 npm run preview
 ```
 
-Serves the `dist/` build locally to verify the production bundle.
+---
+
+## Configuration Notes
+
+- **Idle timeout:** `src/tokens.ts` -> `IDLE_TIMEOUT_MS`
+- **Interactive content:** `src/data/sportsData.ts`
+- **Sport anchor layout/orbit behavior:** `src/App.tsx` constants and helper functions
 
 ---
 
-## Kiosk / touch deployment
+## Kiosk Deployment Notes
 
-- **Resolution:** Designed for **1920×1080**. `Stage` scales the fixed-stage layout to fit the viewport.
-- **Input:** Touch, mouse, and key events reset the idle timer. `index.html` disables text selection and tap highlight where appropriate for kiosk use.
-- **Full screen:** Run the built app in a browser full screen (or kiosk/Electron). Use landscape so the orientation guard does not block the UI.
-- **Assets:** Keep `Moments Sample.mp4`, trim videos, and images in `public/` so paths like `/Moments Sample.mp4` resolve correctly.
+- Run in full-screen landscape.
+- Keep image assets in `public/` so root-relative paths resolve.
+- Mouse/keyboard/touch input all keep the kiosk "awake" by resetting idle timeout.
 
 ---
 
 ## License
 
-Proprietary — Genius Sports.
+Proprietary - Genius Sports.
