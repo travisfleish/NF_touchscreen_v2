@@ -39,6 +39,8 @@
 
 :root {
   --color-navy: #18184c;
+  --font-header: 'Klarheit', 'RedHatText', system-ui, -apple-system, sans-serif;
+  --font-body: 'RedHatText', system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
@@ -49,9 +51,25 @@
   }
 
   body {
-    font-family: 'RedHatText', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-body);
     background: #0000dc;
     overflow: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-header);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-family: inherit;
   }
 }
 
@@ -90,9 +108,3 @@
   }
 }
 
-/* Step 2 panel: fan SVG fills the 1200×675 frame; default preserveAspectRatio keeps full artwork visible. */
-.activating-audiences-fan-cloud > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}

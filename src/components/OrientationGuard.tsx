@@ -29,7 +29,7 @@ export default function OrientationGuard({ children }: { children: React.ReactNo
         color: '#fff',
         textAlign: 'center',
         padding: 60,
-        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+        fontFamily: 'var(--font-body)',
       }}
     >
       <svg
@@ -60,6 +60,7 @@ export default function OrientationGuard({ children }: { children: React.ReactNo
           letterSpacing: '-0.03em',
           marginBottom: 20,
           lineHeight: 1.1,
+          fontFamily: 'var(--font-header)',
         }}
       >
         Rotate Device

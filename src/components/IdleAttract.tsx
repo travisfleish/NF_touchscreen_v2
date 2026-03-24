@@ -116,10 +116,10 @@ export default function IdleAttract({ onEngage }: Props) {
         {/* Subhead */}
         <motion.p
           style={{
-            fontWeight: 600,
+            fontWeight: 500,
             color: '#fff',
             marginBottom: 72,
-            fontSize: 40,
+            fontSize: 30,
             opacity: 0.65,
             letterSpacing: '0.04em',
           }}
@@ -128,7 +128,7 @@ export default function IdleAttract({ onEngage }: Props) {
           initial="initial"
           animate="animate"
         >
-          Tap anywhere to explore Genius Moments
+          Tap anywhere to explore available Genius Moments packages
         </motion.p>
 
         {/* Tap indicator */}
