@@ -15,19 +15,27 @@ export interface SportCategory {
 export interface SportData {
   id: string
   name: string
-  bubbleImage: string
   gradient: string
   glow: string
   categories: SportCategory[]
 }
 
+/** Idle grid — bright; after a sport is chosen it switches to `SPORT_PARENT_*` in App. */
+export const SPORT_IDLE_GRADIENT =
+  'linear-gradient(145deg, rgba(118,172,255,0.92) 0%, rgba(52,105,255,0.92) 45%, rgba(0,41,200,0.96) 100%)'
+export const SPORT_IDLE_GLOW = 'rgba(160,210,255,0.5)'
+
+/** Active sport hub (selected / drill-down parent) — matches parent theme styling in MomentBubble. */
+export const SPORT_PARENT_GRADIENT =
+  'linear-gradient(145deg, rgba(32,48,120,0.96) 0%, rgba(12,28,105,0.97) 50%, rgba(6,16,72,0.98) 100%)'
+export const SPORT_PARENT_GLOW = 'rgba(72,100,190,0.38)'
+
 export const sportsData: SportData[] = [
   {
     id: 'march-madness',
     name: 'March Madness',
-    bubbleImage: '/march_madness.png',
-    gradient: 'linear-gradient(145deg, rgba(118,172,255,0.92) 0%, rgba(52,105,255,0.92) 45%, rgba(0,41,200,0.96) 100%)',
-    glow: 'rgba(160,210,255,0.5)',
+    gradient: SPORT_IDLE_GRADIENT,
+    glow: SPORT_IDLE_GLOW,
     categories: [
       {
         id: 'championship-race',
@@ -70,9 +78,8 @@ export const sportsData: SportData[] = [
   {
     id: 'nfl',
     name: 'NFL',
-    bubbleImage: '/nfl.jpg',
-    gradient: 'linear-gradient(145deg, rgba(106,138,255,0.9) 0%, rgba(35,76,255,0.92) 50%, rgba(0,24,170,0.95) 100%)',
-    glow: 'rgba(120,150,255,0.55)',
+    gradient: SPORT_IDLE_GRADIENT,
+    glow: SPORT_IDLE_GLOW,
     categories: [
       {
         id: 'rivalry-matchups',
@@ -115,9 +122,8 @@ export const sportsData: SportData[] = [
   {
     id: 'nba',
     name: 'NBA',
-    bubbleImage: '/nfl.jpg',
-    gradient: 'linear-gradient(145deg, rgba(106,138,255,0.9) 0%, rgba(35,76,255,0.92) 50%, rgba(0,24,170,0.95) 100%)',
-    glow: 'rgba(120,150,255,0.55)',
+    gradient: SPORT_IDLE_GRADIENT,
+    glow: SPORT_IDLE_GLOW,
     categories: [
       {
         id: 'high-stakes-moments',
@@ -160,9 +166,8 @@ export const sportsData: SportData[] = [
   {
     id: 'world-cup',
     name: 'World Cup',
-    bubbleImage: '/nfl.jpg',
-    gradient: 'linear-gradient(145deg, rgba(106,138,255,0.9) 0%, rgba(35,76,255,0.92) 50%, rgba(0,24,170,0.95) 100%)',
-    glow: 'rgba(120,150,255,0.55)',
+    gradient: SPORT_IDLE_GRADIENT,
+    glow: SPORT_IDLE_GLOW,
     categories: [
       {
         id: 'knockout-round-moments',
@@ -205,9 +210,8 @@ export const sportsData: SportData[] = [
   {
     id: 'mlb',
     name: 'MLB',
-    bubbleImage: '/nfl.jpg',
-    gradient: 'linear-gradient(145deg, rgba(106,138,255,0.9) 0%, rgba(35,76,255,0.92) 50%, rgba(0,24,170,0.95) 100%)',
-    glow: 'rgba(120,150,255,0.55)',
+    gradient: SPORT_IDLE_GRADIENT,
+    glow: SPORT_IDLE_GLOW,
     categories: [
       {
         id: 'pre-game-build-up',
@@ -250,9 +254,8 @@ export const sportsData: SportData[] = [
   {
     id: 'nwsl',
     name: 'NWSL',
-    bubbleImage: '/nfl.jpg',
-    gradient: 'linear-gradient(145deg, rgba(106,138,255,0.9) 0%, rgba(35,76,255,0.92) 50%, rgba(0,24,170,0.95) 100%)',
-    glow: 'rgba(120,150,255,0.55)',
+    gradient: SPORT_IDLE_GRADIENT,
+    glow: SPORT_IDLE_GLOW,
     categories: [
       {
         id: 'brand-protection',

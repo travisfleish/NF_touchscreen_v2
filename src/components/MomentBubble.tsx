@@ -1,9 +1,79 @@
+import { forwardRef } from 'react'
 import { motion } from 'framer-motion'
+
+/** Orbit tier: sport hub is separate (SportBubble); these are mid vs inner rings. */
+export type MomentBubbleLayer = 'category' | 'moment'
+
+/** Bright — “tap next” (idle themes, moments). */
+const SELECTABLE_ORBIT: {
+  baseColor: string
+  background: string
+  border: string
+  boxShadow: string
+  boxShadowPrimary: string
+  highlightOpacity: [number, number, number]
+} = {
+  baseColor: 'rgb(8, 52, 200)',
+  background:
+    'radial-gradient(circle at 24% 18%, rgba(150,195,255,0.55) 0%, rgba(52,105,255,0.88) 48%, rgba(0,41,200,0.95) 100%)',
+  border: '1px solid rgba(200,230,255,0.42)',
+  boxShadow: '0 0 28px rgba(100,150,255,0.45), inset 0 0 18px rgba(255,255,255,0.12)',
+  boxShadowPrimary:
+    '0 0 56px rgba(130,180,255,0.55), 0 0 32px rgba(160,210,255,0.45), inset 0 0 20px rgba(255,255,255,0.14)',
+  highlightOpacity: [0.22, 0.5, 0.22],
+}
+
+/** Dark navy — selected theme as parent (same role as sport hub after pick). */
+const PARENT_ORBIT: {
+  baseColor: string
+  background: string
+  border: string
+  boxShadow: string
+  highlightOpacity: [number, number, number]
+} = {
+  baseColor: 'rgb(12, 28, 105)',
+  background:
+    'radial-gradient(circle at 22% 20%, rgba(140,168,235,0.38) 0%, rgba(32,48,155,0.78) 52%, rgba(12,28,105,0.92) 100%)',
+  border: '1px solid rgba(200,215,255,0.22)',
+  boxShadow: '0 0 22px rgba(72,100,210,0.34), inset 0 0 16px rgba(255,255,255,0.1)',
+  highlightOpacity: [0.1, 0.22, 0.1],
+}
+
+type OrbitTier = {
+  baseColor: string
+  background: string
+  border: string
+  boxShadow: string
+  boxShadowPrimary?: string
+  highlightOpacity: [number, number, number]
+}
+
+const LAYER: Record<MomentBubbleLayer, OrbitTier> = {
+  category: { ...SELECTABLE_ORBIT },
+  /** Same palette as category — moments are equally “pick me”. */
+  moment: { ...SELECTABLE_ORBIT },
+}
+
+/** Active theme hub while its moment ring is open — flat, no competing halo. */
+const CATEGORY_PARENT_SHADOW =
+  '0 0 18px rgba(0,0,0,0.45), inset 0 0 14px rgba(0,0,0,0.22)'
+
+export type MomentBubbleVariant = 'selectable' | 'parent'
 
 interface MomentBubbleProps {
   label: string
   diameter: number
   phase: number
+  /** `category` = theme ring; `moment` = inner ring — same palette; role differs for labels only. */
+  layer?: MomentBubbleLayer
+  /** Selected theme uses parent (dark); idle themes stay bright — mirrors sport idle → selected. */
+  variant?: MomentBubbleVariant
+  /** Active category hub when its moment ring is open — muted, but still fully opaque vs the sport hub. */
+  isDimmed?: boolean
+  /** Other categories on the ring while one is expanded — softer, still opaque vs the sport hub. */
+  isPeripheral?: boolean
+  /** Strong outer glow — only for the deepest visible actionable tier (themes, moments, or a solo theme). */
+  isPrimaryAction?: boolean
   onTap: () => void
 }
 
@@ -16,33 +86,79 @@ function labelFontSizePx(label: string, diameter: number): number {
   else if (longestWordLen <= 13) base = 20
   else if (longestWordLen <= 16) base = 18
   else base = 16
-  const scaled = Math.round(base * scale)
+  /** Slightly smaller body text so “Theme:” / “Moment:” + label fit comfortably. */
+  const scaled = Math.round(base * scale * 0.88)
   /** Keep longest word on one line (no mid-word wrap); ~0.56 ≈ avg glyph width for this font weight. */
-  const maxByLongestWord = Math.floor((diameter * 0.82) / (longestWordLen * 0.56))
-  return Math.max(13, Math.min(scaled, maxByLongestWord))
+  const maxByLongestWord = Math.floor((diameter * 0.76) / (longestWordLen * 0.56))
+  return Math.max(11, Math.min(scaled, maxByLongestWord))
 }
 
-export default function MomentBubble({ label, diameter, phase, onTap }: MomentBubbleProps) {
+function layerTitleFontSizePx(diameter: number): number {
+  return Math.max(12, Math.round(diameter * 0.072))
+}
+
+const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function MomentBubble(
+  {
+    label,
+    diameter,
+    phase,
+    layer = 'category',
+    variant = 'selectable',
+    isDimmed = false,
+    isPeripheral = false,
+    isPrimaryAction = true,
+    onTap,
+  },
+  ref
+) {
+  const layerTitle = layer === 'category' ? 'Theme:' : 'Moment:'
   const fontSize = labelFontSizePx(label, diameter)
+  const titleFontSize = layerTitleFontSizePx(diameter)
+  const isParentTheme = layer === 'category' && variant === 'parent'
+  const tier: OrbitTier = isParentTheme ? PARENT_ORBIT : LAYER[layer]
+  const highlightOpacity = isDimmed
+    ? (tier.highlightOpacity.map((v) => v * 0.28) as [number, number, number])
+    : isPeripheral
+      ? (tier.highlightOpacity.map((v) => v * 0.65) as [number, number, number])
+      : !isPrimaryAction && layer === 'category' && !isParentTheme
+        ? (tier.highlightOpacity.map((v) => v * 0.42) as [number, number, number])
+        : tier.highlightOpacity
+
+  const resolvedBoxShadow: string = ((): string => {
+    if (isDimmed) return '0 0 12px rgba(0,0,0,0.35), inset 0 0 14px rgba(0,0,0,0.18)'
+    if (isPeripheral) return tier.boxShadow
+    if (isParentTheme) return CATEGORY_PARENT_SHADOW
+    if (!isPrimaryAction && layer === 'category') return CATEGORY_PARENT_SHADOW
+    if (isPrimaryAction) {
+      const primary = 'boxShadowPrimary' in tier ? tier.boxShadowPrimary : undefined
+      return primary ?? tier.boxShadow
+    }
+    return tier.boxShadow
+  })()
+
+  const subduedFilter = isDimmed
+    ? 'saturate(0.55) brightness(0.84)'
+    : isPeripheral
+      ? 'saturate(0.72) brightness(0.88)'
+      : undefined
 
   return (
     <motion.button
+      ref={ref}
       type="button"
       onClick={onTap}
       onTouchStart={onTap}
+      aria-label={`${layerTitle} ${label}`}
       style={{
         width: diameter,
         height: diameter,
         borderRadius: '50%',
-        border: '1px solid rgba(255,255,255,0.24)',
-        background: 'radial-gradient(circle at 22% 20%, rgba(165,192,255,0.4) 0%, rgba(26,53,198,0.82) 55%, rgba(8,23,125,0.9) 100%)',
-        boxShadow: '0 0 28px rgba(98,132,255,0.42), inset 0 0 18px rgba(255,255,255,0.14)',
+        border: tier.border,
+        backgroundColor: tier.baseColor,
+        backgroundImage: tier.background,
+        boxShadow: resolvedBoxShadow,
+        filter: subduedFilter,
         color: '#fff',
-        fontFamily: 'var(--font-header)',
-        fontWeight: 600,
-        fontSize,
-        lineHeight: 1.14,
-        letterSpacing: '-0.01em',
         padding: '12px 16px',
         textAlign: 'center',
         cursor: 'pointer',
@@ -50,6 +166,7 @@ export default function MomentBubble({ label, diameter, phase, onTap }: MomentBu
         overflow: 'hidden',
         boxSizing: 'border-box',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         WebkitTapHighlightColor: 'transparent',
@@ -71,24 +188,58 @@ export default function MomentBubble({ label, diameter, phase, onTap }: MomentBu
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
-          background: 'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3), transparent 60%)',
+          background:
+            'radial-gradient(circle at 35% 28%, rgba(220,235,255,0.32), rgba(255,255,255,0.08) 45%, transparent 62%)',
           pointerEvents: 'none',
         }}
-        animate={{ opacity: [0.24, 0.5, 0.24] }}
+        animate={{ opacity: highlightOpacity }}
         transition={{ duration: 3.6 + phase * 0.25, repeat: Infinity, ease: 'easeInOut' }}
       />
       <span
         style={{
           position: 'relative',
           zIndex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: Math.max(8, Math.round(diameter * 0.034)),
           maxWidth: '92%',
           wordBreak: 'normal',
           overflowWrap: 'normal',
           hyphens: 'none',
+          transform: `translateY(-${Math.round(diameter * 0.03)}px)`,
         }}
       >
-        {label}
+        <span
+          style={{
+            fontFamily: 'var(--font-header)',
+            fontSize: titleFontSize,
+            fontWeight: 600,
+            letterSpacing: '0.02em',
+            lineHeight: 1.15,
+            opacity: isDimmed ? 0.45 : isPeripheral ? 0.72 : 0.92,
+            color: isDimmed ? 'rgba(255,255,255,0.42)' : isPeripheral ? 'rgba(255,255,255,0.85)' : '#fff',
+          }}
+        >
+          {layerTitle}
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize,
+            fontWeight: 500,
+            lineHeight: 1.18,
+            letterSpacing: '-0.01em',
+            textAlign: 'center',
+            color: isDimmed ? 'rgba(255,255,255,0.4)' : isPeripheral ? 'rgba(255,255,255,0.82)' : '#fff',
+          }}
+        >
+          {label}
+        </span>
       </span>
     </motion.button>
   )
-}
+})
+
+export default MomentBubble
