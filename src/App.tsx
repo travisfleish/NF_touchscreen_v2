@@ -18,15 +18,15 @@ interface Point {
 }
 
 const STAGE_CENTER: Point = { x: STAGE_W / 2, y: STAGE_H / 2 }
-const SPORT_PAIR_GAP = 420
-/** Vertical offset so bubbles sit below the headline */
-const SPORT_BUBBLES_Y = STAGE_CENTER.y + 24
 const SPORT_ANCHORS: Record<string, Point> = {
-  nfl: { x: STAGE_CENTER.x - SPORT_PAIR_GAP / 2, y: SPORT_BUBBLES_Y },
-  'march-madness': { x: STAGE_CENTER.x + SPORT_PAIR_GAP / 2, y: SPORT_BUBBLES_Y },
+  'march-madness': { x: 320, y: 280 },
+  nfl: { x: 960, y: 200 },
+  nba: { x: 1580, y: 310 },
+  'world-cup': { x: 260, y: 750 },
+  mlb: { x: 920, y: 860 },
+  nwsl: { x: 1600, y: 720 },
 }
 
-const EXPANDED_SPORT_ANCHOR: Point = { ...STAGE_CENTER }
 /** Sport hub diameter while expanded (see SportBubble `diameter` when selected) */
 const EXPANDED_HUB_DIAMETER = 320
 /** Time for the sport bubble to ease into the center */
@@ -90,6 +90,28 @@ function createMomentOffsets(count: number, diameters: number[]): Point[] {
   return [...inner, ...outer]
 }
 
+function getDriftAnimation(index: number) {
+  const patterns = [
+    { x: [0, 80, -60, 100, -40, 0], y: [0, -70, 90, 40, -80, 0], duration: 22 },
+    { x: [0, -90, 70, -50, 110, 0], y: [0, 80, -50, 100, -60, 0], duration: 26 },
+    { x: [0, 70, -110, 50, 80, 0], y: [0, -90, 60, -70, 50, 0], duration: 24 },
+    { x: [0, -80, 50, -120, 60, 0], y: [0, 90, -70, 50, -100, 0], duration: 20 },
+    { x: [0, 110, -50, 80, -90, 0], y: [0, -60, 90, -40, 80, 0], duration: 28 },
+    { x: [0, -60, 100, -90, 40, 0], y: [0, 70, -110, 60, -50, 0], duration: 23 },
+  ]
+  return patterns[index % patterns.length]
+}
+
+function getMicroDrift(index: number) {
+  const patterns = [
+    { x: [0, 6, -4, 7, -3, 0], y: [0, -5, 7, 3, -6, 0], duration: 11 },
+    { x: [0, -7, 5, -3, 8, 0], y: [0, 6, -4, 8, -5, 0], duration: 13 },
+    { x: [0, 5, -8, 3, 6, 0], y: [0, -7, 4, -5, 3, 0], duration: 10 },
+    { x: [0, -5, 4, -8, 4, 0], y: [0, 7, -5, 4, -7, 0], duration: 14 },
+  ]
+  return patterns[index % patterns.length]
+}
+
 function ExperienceBackground() {
   return (
     <motion.div
@@ -133,6 +155,7 @@ function ExperienceBackground() {
 export default function App() {
   const [hasEngaged, setHasEngaged] = useState(false)
   const [expandedSportId, setExpandedSportId] = useState<string | null>(null)
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
   const [selectedMomentId, setSelectedMomentId] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const engagedRef = useRef(hasEngaged)
@@ -141,6 +164,7 @@ export default function App() {
   const resetToIdle = useCallback(() => {
     setHasEngaged(false)
     setExpandedSportId(null)
+    setExpandedCategoryId(null)
     setSelectedMomentId(null)
     if (timerRef.current) {
       clearTimeout(timerRef.current)
@@ -183,32 +207,77 @@ export default function App() {
   )
 
   const selectedMoment = useMemo(
-    () => expandedSport?.moments.find((moment) => moment.id === selectedMomentId) ?? null,
-    [expandedSport, selectedMomentId]
+    () =>
+      expandedSport?.categories
+        .find((category) => category.id === expandedCategoryId)
+        ?.moments.find((moment) => moment.id === selectedMomentId) ?? null,
+    [expandedCategoryId, expandedSport, selectedMomentId]
   )
 
+  const momentItems = useMemo(() => {
+    if (!expandedSport || !expandedCategoryId) return []
+    const activeCategory = expandedSport.categories.find((category) => category.id === expandedCategoryId)
+    if (!activeCategory) return []
+    return activeCategory.moments.map((moment) => ({ id: moment.id, label: moment.name }))
+  }, [expandedCategoryId, expandedSport])
+
   const momentOffsets = useMemo(() => {
+    if (!momentItems.length) return []
+    const base = momentItems.length > 10 ? 182 : 204
+    const diameters = momentItems.map((_, i) => momentDiameterForIndex(base, i))
+    return createMomentOffsets(momentItems.length, diameters)
+  }, [momentItems])
+
+  const categoryOffsets = useMemo(() => {
     if (!expandedSport) return []
-    const base = expandedSport.moments.length > 10 ? 182 : 204
-    const diameters = expandedSport.moments.map((_, i) => momentDiameterForIndex(base, i))
-    return createMomentOffsets(expandedSport.moments.length, diameters)
+    const base = 224
+    const diameters = expandedSport.categories.map((_, index) => momentDiameterForIndex(base, index))
+    return createMomentOffsets(expandedSport.categories.length, diameters)
   }, [expandedSport])
+
+  const selectedCategoryAnchor = useMemo(() => {
+    if (!expandedSport || !expandedCategoryId) return null
+    const expandedCategoryIndex = expandedSport.categories.findIndex(
+      (category) => category.id === expandedCategoryId
+    )
+    if (expandedCategoryIndex < 0) return null
+    const sportAnchor = SPORT_ANCHORS[expandedSport.id] ?? STAGE_CENTER
+    const categoryOffset = categoryOffsets[expandedCategoryIndex] ?? { x: 0, y: 0 }
+    return {
+      x: sportAnchor.x + categoryOffset.x,
+      y: sportAnchor.y + categoryOffset.y,
+    }
+  }, [categoryOffsets, expandedCategoryId, expandedSport])
 
   const handleEngage = useCallback(() => {
     setHasEngaged(true)
     setExpandedSportId(null)
+    setExpandedCategoryId(null)
     setSelectedMomentId(null)
   }, [])
 
   const handleSportTap = useCallback((sportId: string) => {
     setExpandedSportId(sportId)
+    setExpandedCategoryId(null)
+    setSelectedMomentId(null)
+  }, [])
+
+  const handleCategoryTap = useCallback((categoryId: string) => {
+    setExpandedCategoryId(categoryId)
     setSelectedMomentId(null)
   }, [])
 
   const collapseExpandedState = useCallback(() => {
+    if (selectedMomentId) {
+      setSelectedMomentId(null)
+      return
+    }
+    if (expandedCategoryId) {
+      setExpandedCategoryId(null)
+      return
+    }
     setExpandedSportId(null)
-    setSelectedMomentId(null)
-  }, [])
+  }, [expandedCategoryId, selectedMomentId])
 
   return (
     <OrientationGuard>
@@ -302,112 +371,214 @@ export default function App() {
                 <AnimatePresence>
                   {sportsData.map((sport, index) => {
                     const isExpandedSport = expandedSportId === sport.id
-                    const isHidden = expandedSportId !== null && !isExpandedSport
-                    const anchor = SPORT_ANCHORS[sport.id] ?? { x: 960, y: 540 }
-                    const toCenterX = EXPANDED_SPORT_ANCHOR.x - anchor.x
-                    const toCenterY = EXPANDED_SPORT_ANCHOR.y - anchor.y
+                    const drift = getDriftAnimation(index)
+                    const anchor = SPORT_ANCHORS[sport.id] ?? STAGE_CENTER
 
-                    return !isHidden ? (
+                    return (
                       <motion.div
-                        key={sport.id}
-                        transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
+                        key={`drift-${sport.id}`}
                         style={{
                           position: 'absolute',
                           left: anchor.x,
                           top: anchor.y,
-                          zIndex: isExpandedSport ? 40 : 32 - index,
                         }}
-                        initial={{ opacity: 0, scale: 0.86, x: 0, y: 0 }}
-                        animate={{
-                          opacity: 1,
-                          scale: isExpandedSport ? EXPANDED_HUB_SCALE : 1,
-                          x: isExpandedSport ? toCenterX : 0,
-                          y: isExpandedSport ? toCenterY : 0,
-                        }}
-                        exit={{ opacity: 0, scale: 0.8, y: 30 }}
+                        initial={{ x: drift.x[1] * 0.5, y: drift.y[1] * 0.5 }}
+                        animate={{ x: drift.x, y: drift.y }}
                         transition={{
-                          opacity: { duration: 0.45, ease: 'easeOut' },
-                          scale: isExpandedSport
-                            ? {
-                                delay: SPORT_EXPAND_DURATION_S,
-                                duration: SPORT_SHRINK_DURATION_S,
-                                ease: [0.2, 0.9, 0.3, 1],
-                              }
-                            : {
-                                duration: 0.55,
-                                ease: [0.22, 1, 0.36, 1],
-                              },
-                          x: {
-                            type: 'tween',
-                            duration: SPORT_EXPAND_DURATION_S,
-                            ease: [0.22, 0.94, 0.36, 1],
-                          },
-                          y: {
-                            type: 'tween',
-                            duration: SPORT_EXPAND_DURATION_S,
-                            ease: [0.22, 0.94, 0.36, 1],
-                          },
+                          duration: isExpandedSport ? drift.duration * 4 : drift.duration,
+                          repeat: Infinity,
+                          repeatType: 'loop',
+                          ease: 'easeInOut',
                         }}
                       >
-                        <SportBubble
-                          label={sport.name}
-                          diameter={isExpandedSport ? EXPANDED_HUB_DIAMETER : 300}
-                          imageUrl={sport.bubbleImage}
-                          gradient={sport.gradient}
-                          glow={sport.glow}
-                          pulseAlternate={index % 2 === 1 ? 1 : 0}
-                          onTap={() => handleSportTap(sport.id)}
-                        />
+                        <motion.div
+                          transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
+                          style={{
+                            position: 'relative',
+                            zIndex: isExpandedSport ? 40 : 32 - index,
+                          }}
+                          initial={{ opacity: 0, scale: 0.86, x: 0, y: 0 }}
+                          animate={{
+                            opacity: isExpandedSport ? 1 : expandedSportId ? 0.38 : 1,
+                            scale: isExpandedSport ? 0.78 : 1,
+                            x: 0,
+                            y: 0,
+                          }}
+                          exit={{ opacity: 0, scale: 0.8, y: 30 }}
+                          transition={{
+                            opacity: { duration: 0.45, ease: 'easeOut' },
+                            scale: isExpandedSport
+                              ? {
+                                  delay: SPORT_EXPAND_DURATION_S,
+                                  duration: SPORT_SHRINK_DURATION_S,
+                                  ease: [0.2, 0.9, 0.3, 1],
+                                }
+                              : {
+                                  duration: 0.55,
+                                  ease: [0.22, 1, 0.36, 1],
+                                },
+                            x: {
+                              type: 'tween',
+                              duration: SPORT_EXPAND_DURATION_S,
+                              ease: [0.22, 0.94, 0.36, 1],
+                            },
+                            y: {
+                              type: 'tween',
+                              duration: SPORT_EXPAND_DURATION_S,
+                              ease: [0.22, 0.94, 0.36, 1],
+                            },
+                          }}
+                        >
+                          <SportBubble
+                            label={sport.name}
+                            diameter={isExpandedSport ? EXPANDED_HUB_DIAMETER : 300}
+                            imageUrl={sport.bubbleImage}
+                            gradient={sport.gradient}
+                            glow={sport.glow}
+                            pulseAlternate={index % 2 === 1 ? 1 : 0}
+                            onTap={() => handleSportTap(sport.id)}
+                          />
+                        </motion.div>
                       </motion.div>
-                    ) : null
+                    )
                   })}
                 </AnimatePresence>
 
                 <AnimatePresence>
                   {expandedSport &&
-                    expandedSport.moments.map((moment, index) => {
-                      const baseDiameter = expandedSport.moments.length > 10 ? 182 : 204
-                      const bubbleDiameter = momentDiameterForIndex(baseDiameter, index)
-                      const offset = momentOffsets[index] ?? { x: 0, y: 0 }
+                    expandedSport.categories.map((category, index) => {
+                      const bubbleDiameter = momentDiameterForIndex(224, index)
+                      const offset = categoryOffsets[index] ?? { x: 0, y: 0 }
+                      const sportAnchor = SPORT_ANCHORS[expandedSport.id] ?? STAGE_CENTER
+                      const isExpandedCategory = expandedCategoryId === category.id
+                      const microDrift = getMicroDrift(index)
                       const orbitStartDelay = MOMENTS_START_AFTER_S + index * 0.045
+
                       return (
                         <motion.div
-                          key={moment.id}
-                          transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
+                          key={`orbit-drift-category-${category.id}`}
                           style={{
                             position: 'absolute',
-                            left: EXPANDED_SPORT_ANCHOR.x + offset.x,
-                            top: EXPANDED_SPORT_ANCHOR.y + offset.y,
+                            left: sportAnchor.x + offset.x,
+                            top: sportAnchor.y + offset.y,
                             zIndex: 34,
                           }}
-                          initial={{
-                            opacity: 0,
-                            x: -offset.x,
-                            y: -offset.y,
-                            scale: 0.2,
-                          }}
-                          animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-                          exit={{
-                            opacity: 0,
-                            x: -offset.x * 0.28,
-                            y: -offset.y * 0.28,
-                            scale: 0.35,
-                            transition: { delay: 0, duration: 0.22, ease: 'easeIn' },
-                          }}
+                          animate={{ x: microDrift.x, y: microDrift.y }}
                           transition={{
-                            type: 'spring',
-                            stiffness: 175,
-                            damping: 20,
-                            mass: 0.85,
-                            delay: orbitStartDelay,
+                            duration: microDrift.duration,
+                            repeat: Infinity,
+                            repeatType: 'loop',
+                            ease: 'easeInOut',
                           }}
                         >
-                          <MomentBubble
-                            label={moment.name}
-                            diameter={bubbleDiameter}
-                            phase={(index % 5) * 0.6 + 0.5}
-                            onTap={() => setSelectedMomentId(moment.id)}
-                          />
+                          <motion.div
+                            key={`category-${category.id}`}
+                            transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
+                            style={{
+                              position: 'relative',
+                            }}
+                            initial={{
+                              opacity: 0,
+                              x: -offset.x,
+                              y: -offset.y,
+                              scale: 0.2,
+                            }}
+                            animate={{
+                              opacity: expandedCategoryId ? (isExpandedCategory ? 1 : 0.38) : 1,
+                              scale: isExpandedCategory ? 0.78 : 1,
+                              x: 0,
+                              y: 0,
+                            }}
+                            exit={{
+                              opacity: 0,
+                              x: -offset.x * 0.28,
+                              y: -offset.y * 0.28,
+                              scale: 0.35,
+                              transition: { delay: 0, duration: 0.22, ease: 'easeIn' },
+                            }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 175,
+                              damping: 20,
+                              mass: 0.85,
+                              delay: orbitStartDelay,
+                            }}
+                          >
+                            <MomentBubble
+                              label={category.name}
+                              diameter={bubbleDiameter}
+                              phase={(index % 5) * 0.6 + 0.5}
+                              onTap={() => handleCategoryTap(category.id)}
+                            />
+                          </motion.div>
+                        </motion.div>
+                      )
+                    })}
+                </AnimatePresence>
+
+                <AnimatePresence>
+                  {expandedSport &&
+                    expandedCategoryId &&
+                    selectedCategoryAnchor &&
+                    momentItems.map((item, index) => {
+                      const baseDiameter = momentItems.length > 10 ? 182 : 204
+                      const bubbleDiameter = momentDiameterForIndex(baseDiameter, index)
+                      const offset = momentOffsets[index] ?? { x: 0, y: 0 }
+                      const microDrift = getMicroDrift(index)
+                      const orbitStartDelay = MOMENTS_START_AFTER_S + index * 0.045
+
+                      return (
+                        <motion.div
+                          key={`orbit-drift-moment-${item.id}`}
+                          style={{
+                            position: 'absolute',
+                            left: selectedCategoryAnchor.x + offset.x,
+                            top: selectedCategoryAnchor.y + offset.y,
+                            zIndex: 34,
+                          }}
+                          animate={{ x: microDrift.x, y: microDrift.y }}
+                          transition={{
+                            duration: microDrift.duration,
+                            repeat: Infinity,
+                            repeatType: 'loop',
+                            ease: 'easeInOut',
+                          }}
+                        >
+                          <motion.div
+                            key={`moment-${item.id}`}
+                            transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
+                            style={{
+                              position: 'relative',
+                            }}
+                            initial={{
+                              opacity: 0,
+                              x: -offset.x,
+                              y: -offset.y,
+                              scale: 0.2,
+                            }}
+                            animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                            exit={{
+                              opacity: 0,
+                              x: -offset.x * 0.28,
+                              y: -offset.y * 0.28,
+                              scale: 0.35,
+                              transition: { delay: 0, duration: 0.22, ease: 'easeIn' },
+                            }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 175,
+                              damping: 20,
+                              mass: 0.85,
+                              delay: orbitStartDelay,
+                            }}
+                          >
+                            <MomentBubble
+                              label={item.label}
+                              diameter={bubbleDiameter}
+                              phase={(index % 5) * 0.6 + 0.5}
+                              onTap={() => setSelectedMomentId(item.id)}
+                            />
+                          </motion.div>
                         </motion.div>
                       )
                     })}
