@@ -1,7 +1,17 @@
 import { forwardRef } from 'react'
 import { motion } from 'framer-motion'
+import { momentPackageDisplayLines } from '../utils/momentPackageLabel'
+import {
+  tapRingBubblePulseScaleHigh,
+  tapRingFramePad,
+  tapRingOuterRadiusPx,
+  tapRingStrokeCenterRadiusPx,
+  tapRingStrokeWidthPx,
+} from '../utils/tapRingGeometry'
 
 const SIZE_TRANSITION = { duration: 0.52, ease: [0.22, 1, 0.36, 1] as const }
+/** One leg of hub-style breath — bubble grows to main ring stroke center at peak. */
+const TAP_RING_PULSE_HALF_S = 2.35
 
 /** Orbit tier: sport hub is separate (SportBubble); these are mid vs inner rings. */
 export type MomentBubbleLayer = 'category' | 'moment'
@@ -59,6 +69,100 @@ const LAYER: Record<MomentBubbleLayer, OrbitTier> = {
 /** Active theme hub while its moment ring is open — flat, no competing halo. */
 const CATEGORY_PARENT_SHADOW =
   '0 0 18px rgba(0,0,0,0.45), inset 0 0 14px rgba(0,0,0,0.22)'
+
+/**
+ * Static white track + one orbiting dash outside the track (single stroke — no duplicate bloom/core).
+ */
+function TapRingCue({
+  diameter,
+  phase,
+  opacity,
+}: {
+  diameter: number
+  phase: number
+  opacity: number
+}) {
+  const strokeW = tapRingStrokeWidthPx(diameter)
+  const rTrack = tapRingStrokeCenterRadiusPx(diameter)
+  const ROuter = tapRingOuterRadiusPx(diameter)
+  const pad = tapRingFramePad(diameter)
+  const size = diameter + pad * 2
+  const cx = size / 2
+  const cy = size / 2
+
+  /** Single orbiting dash — outside main ring (two stacked circles read as “double pulse”). */
+  const pulseW = strokeW * 1.15
+  const rPulse = ROuter + pulseW / 2
+  const circPulse = 2 * Math.PI * rPulse
+  const pulseArcFraction = 0.2
+  const pulseLen = circPulse * pulseArcFraction
+
+  const spinDuration = 3.4 + phase * 0.1
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 0,
+        width: size,
+        height: size,
+        pointerEvents: 'none',
+        opacity,
+      }}
+      aria-hidden
+    >
+      <svg width={size} height={size} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={rTrack}
+          fill="none"
+          stroke="rgba(255,255,255,1)"
+          strokeWidth={strokeW}
+          style={{ filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.45))' }}
+        />
+      </svg>
+      <motion.div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        animate={{ rotate: 360 }}
+        transition={{
+          duration: spinDuration,
+          repeat: Infinity,
+          ease: 'linear',
+        }}
+      >
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ display: 'block', overflow: 'visible' }}
+        >
+          <circle
+            cx={cx}
+            cy={cy}
+            r={rPulse}
+            fill="none"
+            stroke="rgba(255,255,255,1)"
+            strokeWidth={pulseW}
+            strokeLinecap="round"
+            strokeDasharray={`${pulseLen} ${circPulse}`}
+            transform={`rotate(-90 ${cx} ${cy})`}
+            style={{ filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.95))' }}
+          />
+        </svg>
+      </motion.div>
+    </div>
+  )
+}
 
 export type MomentBubbleVariant = 'selectable' | 'parent'
 
@@ -170,16 +274,42 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
       ? 'saturate(0.72) brightness(0.88)'
       : undefined
 
+  /** Category ring: moment packages. Moment ring: inner bubbles (only mounted after a package is selected in App). */
+  const showTapRing =
+    !isDimmed &&
+    ((layer === 'category' && variant === 'selectable') || layer === 'moment')
+  const tapRingOpacity = isPeripheral ? 0.42 : 1
+  const framePad = showTapRing ? tapRingFramePad(diameter) : 0
+  const tapRingPulseHigh = tapRingBubblePulseScaleHigh(diameter)
+  const tapRingPulseScaleTo =
+    showTapRing && tapRingPulseHigh > 1.012
+      ? isPeripheral
+        ? 1 + (tapRingPulseHigh - 1) * 0.62
+        : tapRingPulseHigh
+      : 1
+
   return (
+    <div
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: diameter + framePad * 2,
+        height: diameter + framePad * 2,
+      }}
+    >
+      {showTapRing && <TapRingCue diameter={diameter} phase={phase} opacity={tapRingOpacity} />}
     <motion.button
       ref={ref}
       type="button"
       onClick={onTap}
       onTouchStart={onTap}
-      aria-label={`${layerTitle} ${label}`}
+      aria-label={`${layerTitle} ${layer === 'category' ? momentPackageDisplayLines(label).join(' ') : label}`}
       animate={{
         width: diameter,
         height: diameter,
+        scale: showTapRing && tapRingPulseScaleTo > 1.012 ? [1, tapRingPulseScaleTo] : 1,
         ...(disableAmbientMotion
           ? { x: 0, y: 0 }
           : {
@@ -190,6 +320,15 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
       transition={{
         width: SIZE_TRANSITION,
         height: SIZE_TRANSITION,
+        scale: showTapRing && tapRingPulseScaleTo > 1.012
+          ? {
+              duration: TAP_RING_PULSE_HALF_S,
+              repeat: Infinity,
+              repeatType: 'reverse',
+              ease: 'easeInOut',
+              delay: phase * 0.14,
+            }
+          : { duration: 0.2 },
         x: {
           duration: disableAmbientMotion ? 0.2 : 8 + phase,
           repeat: disableAmbientMotion ? 0 : Infinity,
@@ -213,6 +352,7 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
         textAlign: 'center',
         cursor: 'pointer',
         position: 'relative',
+        zIndex: 1,
         overflow: 'hidden',
         boxSizing: 'border-box',
         display: 'flex',
@@ -306,10 +446,15 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
             color: isDimmed ? 'rgba(255,255,255,0.4)' : isPeripheral ? 'rgba(255,255,255,0.82)' : '#fff',
           }}
         >
-          {label}
+          {(layer === 'category' ? momentPackageDisplayLines(label) : [label]).map((line, i) => (
+            <span key={i} style={{ display: 'block' }}>
+              {line}
+            </span>
+          ))}
         </motion.span>
       </motion.span>
     </motion.button>
+    </div>
   )
 })
 

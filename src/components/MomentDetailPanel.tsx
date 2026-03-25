@@ -30,7 +30,7 @@ export default function MomentDetailPanel({ moment, onClose }: MomentDetailPanel
           width: 1020,
           maxWidth: '100%',
           borderRadius: 28,
-          background: 'linear-gradient(160deg, rgba(10,22,80,0.92) 0%, rgba(4,12,60,0.94) 100%)',
+          background: 'rgb(12, 28, 105)',
           border: '1px solid rgba(170,198,255,0.26)',
           boxShadow: '0 0 70px rgba(27,76,255,0.35), inset 0 0 1px rgba(255,255,255,0.25)',
           color: '#fff',
@@ -45,15 +45,6 @@ export default function MomentDetailPanel({ moment, onClose }: MomentDetailPanel
         transition={{ duration: 0.32, ease: [0.2, 0.9, 0.3, 1] }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            background: 'radial-gradient(circle at 15% 12%, rgba(185,212,255,0.2), transparent 38%)',
-          }}
-        />
-
         <motion.button
           type="button"
           onClick={onClose}
@@ -84,7 +75,7 @@ export default function MomentDetailPanel({ moment, onClose }: MomentDetailPanel
             margin: 0,
             marginBottom: 22,
             fontWeight: 700,
-            lineHeight: 1.1,
+            lineHeight: 1.15,
             letterSpacing: '-0.02em',
             fontSize: 60,
             fontFamily: 'var(--font-header)',
@@ -92,6 +83,19 @@ export default function MomentDetailPanel({ moment, onClose }: MomentDetailPanel
             position: 'relative',
           }}
         >
+          <span
+            style={{
+              display: 'block',
+              fontSize: 28,
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              color: '#e1ff67',
+              marginBottom: 12,
+              fontFamily: 'var(--font-header)',
+            }}
+          >
+            Moment:
+          </span>
           {moment.name}
         </h2>
 

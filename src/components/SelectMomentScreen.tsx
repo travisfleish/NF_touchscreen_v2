@@ -4,6 +4,7 @@ import { Category, Moment, moments as momentsList } from '../data/moments'
 import AnimatedBarsBackground from './AnimatedBarsBackground'
 import { CategoryTileBarPattern, getCategoryPreviewImageUrl } from './CategoryTile'
 import { colors } from '../tokens'
+import { momentPackageDisplayLines } from '../utils/momentPackageLabel'
 
 interface Props {
   category: Category
@@ -175,9 +176,10 @@ export default function SelectMomentScreen({ category, onSelectMoment, onBack }:
                 lineHeight: 1.08,
                 color: '#ffffff',
                 margin: '0 0 14px 0',
+                whiteSpace: 'pre-line',
               }}
             >
-              {category.name}
+              {momentPackageDisplayLines(category.name).join('\n')}
             </h2>
 
             <p

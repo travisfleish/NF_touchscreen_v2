@@ -1,5 +1,6 @@
 import { forwardRef } from 'react'
 import { motion } from 'framer-motion'
+import { momentPackageDisplayLines } from '../utils/momentPackageLabel'
 
 /** One leg of the breath (rest→peak or peak→rest). Full cycle = 2× this. */
 const PULSE_HALF_S = 2.35
@@ -37,12 +38,18 @@ const SportBubble = forwardRef<HTMLButtonElement, SportBubbleProps>(function Spo
   ref
 ) {
   const pulseDelay = pulseAlternate * PULSE_HALF_S
+  const labelLines = momentPackageDisplayLines(label)
+  /** Match sizing to longest line (two-word labels stack; shorter total length than one long string). */
+  const labelMeasureLen =
+    labelLines.length === 2
+      ? Math.max(labelLines[0].length, labelLines[1].length)
+      : label.length
   /** Idle / expanded hub uses ~300–320px reference; shrink type when hub is smaller (e.g. sport-as-parent beside theme ring). */
   const labelFontSize = compactLabel
-    ? Math.max(14, Math.round((label.length > 10 ? 42 : 54) * (diameter / 300)))
+    ? Math.max(14, Math.round((labelMeasureLen > 10 ? 42 : 54) * (diameter / 300)))
     : Math.max(
         14,
-        Math.round((label.length > 10 ? 42 : 54) * Math.min(1, diameter / 300))
+        Math.round((labelMeasureLen > 10 ? 42 : 54) * Math.min(1, diameter / 300))
       )
   const hubRim = isDimmed
     ? 'rgba(255,255,255,0.32)'
@@ -125,13 +132,27 @@ const SportBubble = forwardRef<HTMLButtonElement, SportBubbleProps>(function Spo
         style={{
           position: 'relative',
           zIndex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          height: '100%',
+          boxSizing: 'border-box',
+          padding: '0 8%',
           color: isDimmed ? 'rgba(255,255,255,0.94)' : '#fff',
           textShadow: isDimmed
             ? '0 1px 12px rgba(0,0,0,0.55), 0 0 20px rgba(40,60,140,0.35)'
             : '0 0 28px rgba(180,200,255,0.5)',
+          lineHeight: labelLines.length === 2 ? 1.08 : 1.15,
+          textAlign: 'center',
         }}
       >
-        {label}
+        {labelLines.map((line, i) => (
+          <span key={i} style={{ display: 'block' }}>
+            {line}
+          </span>
+        ))}
       </span>
     </motion.button>
   )

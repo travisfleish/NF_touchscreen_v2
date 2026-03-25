@@ -124,7 +124,7 @@ export default function IdleAttract({ onEngage }: Props) {
             fontWeight: 500,
             color: '#fff',
             marginBottom: 72,
-            fontSize: 30,
+            fontSize: 40,
             opacity: 0.65,
             letterSpacing: '0.04em',
             whiteSpace: 'nowrap',
@@ -136,43 +136,6 @@ export default function IdleAttract({ onEngage }: Props) {
         >
           Tap anywhere to explore examples of Genius Moments Packages
         </motion.p>
-
-        {/* Tap indicator */}
-        <motion.div
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}
-          custom={0.65}
-          variants={textVariants}
-          initial="initial"
-          animate="animate"
-        >
-          <motion.div
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: '50%',
-              border: '2px solid rgba(255,255,255,0.35)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            animate={{ scale: [1, 1.12, 1], opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <svg
-              width="36"
-              height="36"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ opacity: 0.8 }}
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </motion.div>
-        </motion.div>
       </div>
 
       {/* Bottom data strip */}

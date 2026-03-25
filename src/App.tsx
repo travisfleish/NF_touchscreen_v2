@@ -8,6 +8,7 @@ import OrientationGuard from './components/OrientationGuard'
 import AnimatedBarsBackground from './components/AnimatedBarsBackground'
 import SportBubble from './components/SportBubble'
 import MomentBubble from './components/MomentBubble'
+import { tapRingOuterRadiusPx } from './utils/tapRingGeometry'
 import MomentDetailPanel from './components/MomentDetailPanel'
 import { IDLE_TIMEOUT_MS } from './tokens'
 import { sportsData, SportData, SPORT_PARENT_GLOW, SPORT_PARENT_GRADIENT } from './data/sportsData'
@@ -42,7 +43,8 @@ const PERIPHERAL_ANCHORS: Record<string, Point> = {
   nba: { x: 1720, y: 300 },
   'world-cup': { x: 240, y: 820 },
   mlb: { x: 960, y: 920 },
-  nwsl: { x: 1680, y: 820 },
+  /** Nudged up vs bottom band so docked hubs clear “Genius Moments Explorer” (bottom-right). */
+  nwsl: { x: 1680, y: 695 },
 }
 
 /** Smaller sport hub on the perimeter when another sport is expanded. */
@@ -61,10 +63,11 @@ const CATEGORY_DOCK_SLOTS: Point[] = [
   { x: 960, y: 200 },
   { x: 1720, y: 300 },
   { x: 200, y: 540 },
-  { x: 1720, y: 540 },
+  /** Right column: y shifted up so perimeter docks stay above bottom-right title. */
+  { x: 1720, y: 420 },
   { x: 240, y: 820 },
   { x: 960, y: 920 },
-  { x: 1680, y: 820 },
+  { x: 1680, y: 690 },
 ]
 
 /** Sport hub diameter while expanded when there is no theme ring (solo sport). */
@@ -491,15 +494,15 @@ function computeDockedSportAnchorsAvoidingCluster(
     { x: 160, y: 200 },
     { x: 1760, y: 200 },
     { x: 160, y: 880 },
-    { x: 1760, y: 880 },
+    { x: 1760, y: 720 },
     { x: 280, y: 1000 },
-    { x: 1640, y: 1000 },
+    { x: 1640, y: 860 },
     { x: 120, y: 540 },
-    { x: 1800, y: 540 },
+    { x: 1800, y: 430 },
     { x: 400, y: 180 },
     { x: 1520, y: 180 },
     { x: 400, y: 900 },
-    { x: 1520, y: 900 },
+    { x: 1520, y: 780 },
   ]).map((p) => clampDockPeripheralAnchor(p))
 
   /** Active sport uses hub anchor — only other sports need perimeter dock slots. */
@@ -576,12 +579,15 @@ function OrbitConnectorSvg({
       const cx = hx + offset.x
       const cy = hy + offset.y
       const baseD = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, index)
-      const childCircle: Point & { r: number } = { x: cx, y: cy, r: baseD / 2 }
+      /** Expanded theme hub has no tap ring — connectors meet the bubble rim. */
+      const childR =
+        expandedCategoryId === cat.id ? baseD / 2 : tapRingOuterRadiusPx(baseD)
+      const childCircle: Point & { r: number } = { x: cx, y: cy, r: childR }
       const seg = trimmedSegmentBetweenCircles(hubCircle, childCircle)
       if (seg) out[cat.id] = seg
     })
     return out
-  }, [expandedSport, expandedClusterAnchor, categoryOffsets])
+  }, [expandedSport, expandedClusterAnchor, categoryOffsets, expandedCategoryId])
 
   const momentSegments = useMemo(() => {
     const out: Record<string, ConnectorSegment> = {}
@@ -603,7 +609,11 @@ function OrbitConnectorSvg({
       const cx = px + off.x
       const cy = py + off.y
       const d = momentDiameterForIndex(baseMoment, mi)
-      const childCircle: Point & { r: number } = { x: cx, y: cy, r: d / 2 }
+      const childCircle: Point & { r: number } = {
+        x: cx,
+        y: cy,
+        r: tapRingOuterRadiusPx(d),
+      }
       const seg = trimmedSegmentBetweenCircles(parentCircle, childCircle)
       if (seg) out[item.id] = seg
     })
@@ -957,6 +967,32 @@ export default function App() {
                 transition={{ duration: 0.35, ease: 'easeInOut' }}
               >
                 <ExperienceBackground />
+
+                {/* Subtle title — bottom-right safe zone (bubbles use center / perimeter; z below bubbles). */}
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    bottom: 40,
+                    right: 48,
+                    zIndex: 25,
+                    pointerEvents: 'none',
+                    textAlign: 'right',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-header)',
+                      fontWeight: 600,
+                      fontSize: 30,
+                      letterSpacing: '0.04em',
+                      color: '#ffffff',
+                      textShadow: '0 1px 18px rgba(0,0,40,0.55)',
+                    }}
+                  >
+                    Genius Moments Explorer
+                  </span>
+                </div>
 
                 <OrbitConnectorSvg
                   expandedSport={expandedSport}

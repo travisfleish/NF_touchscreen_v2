@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { Category } from '../data/moments'
+import { momentPackageDisplayLines } from '../utils/momentPackageLabel'
 
 /** Preview image URL for category; uses local assets for championship/rivalry, else placeholder */
 export function getCategoryPreviewImageUrl(categoryId: string): string {
@@ -47,6 +48,7 @@ export default function CategoryTile({ category, index, onSelect }: Props) {
   const firstMoment = category.moments[0]
   const accentColor = firstMoment?.accentColor ?? '#00ccff'
   const previewImageUrl = getCategoryPreviewImageUrl(category.id)
+  const titleLines = momentPackageDisplayLines(category.name)
 
   return (
     <motion.button
@@ -136,10 +138,17 @@ export default function CategoryTile({ category, index, onSelect }: Props) {
             color: '#ffffff',
             lineHeight: 1.1,
             textShadow: '0 2px 24px rgba(0,0,0,0.5)',
-            whiteSpace: 'nowrap',
+            whiteSpace: titleLines.length === 1 ? 'nowrap' : 'normal',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
           }}
         >
-          {category.name}
+          {titleLines.map((line, i) => (
+            <span key={i} style={{ display: 'block' }}>
+              {line}
+            </span>
+          ))}
         </div>
       </div>
 
