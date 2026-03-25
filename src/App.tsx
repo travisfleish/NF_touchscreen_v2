@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import IdleAttract from './components/IdleAttract'
 import KioskControls from './components/KioskControls'
@@ -49,6 +49,8 @@ const PERIPHERAL_ANCHORS: Record<string, Point> = {
 const DOCKED_SPORT_DIAMETER = 148
 /** Max visual radius of docked hub (pulse scale 1.09 on SportBubble). */
 const DOCKED_HUB_RADIUS_PX = (DOCKED_SPORT_DIAMETER / 2) * 1.09 + STAGE_MARGIN
+/** Above category / moment orbit layers (max 42); below Back (45) — docked sports must not sit under child nodes. */
+const Z_INDEX_DOCKED_SPORT = 44
 
 /**
  * Perimeter slots for category bubbles (step 2: pick category) and non-selected
@@ -65,104 +67,15 @@ const CATEGORY_DOCK_SLOTS: Point[] = [
   { x: 1680, y: 820 },
 ]
 
-/** Smaller category bubble when docked on the perimeter. */
-const CATEGORY_DOCK_DIAMETER = 148
-
-function categoryDockSlotForIndex(index: number, count: number): Point {
-  if (count <= 0) return STAGE_CENTER
-  if (count === 1) return CATEGORY_DOCK_SLOTS[1]
-  const n = CATEGORY_DOCK_SLOTS.length
-  const step = Math.max(1, Math.floor(n / count))
-  return CATEGORY_DOCK_SLOTS[(index * step) % n]
-}
-
-/**
- * When moments are visible, pick perimeter dock position(s) for non-selected categories so they
- * stay outside the moment ring (fixed slots like top-center can sit on top of a moment).
- */
-function computeOptimalCategoryDocksForMoments(
-  easelCenter: Point,
-  momentOffsets: Point[],
-  momentDiameters: number[],
-  dockCount: number
-): Point[] {
-  if (dockCount <= 0) return []
-  const dockR = orbitSatelliteEffectiveRadiusPx(CATEGORY_DOCK_DIAMETER)
-  const momentCircles = momentOffsets.map((o, i) => ({
-    x: easelCenter.x + o.x,
-    y: easelCenter.y + o.y,
-    r: orbitSatelliteEffectiveRadiusPx(momentDiameters[i]),
-  }))
-
-  const minClearanceToMoments = (dock: Point): number => {
-    let m = Infinity
-    for (const mc of momentCircles) {
-      const d = Math.hypot(dock.x - mc.x, dock.y - mc.y) - dockR - mc.r
-      m = Math.min(m, d)
-    }
-    return m
-  }
-
-  const minClearanceToPlaced = (dock: Point, placed: Point[]): number => {
-    let m = Infinity
-    for (const p of placed) {
-      const d = Math.hypot(dock.x - p.x, dock.y - p.y) - 2 * dockR - ORBIT_GAP_PX
-      m = Math.min(m, d)
-    }
-    return m
-  }
-
-  const scoreSlot = (dock: Point, placed: Point[]): number =>
-    Math.min(minClearanceToMoments(dock), minClearanceToPlaced(dock, placed))
-
-  if (dockCount === 1) {
-    let best = CATEGORY_DOCK_SLOTS[0]
-    let bestScore = scoreSlot(best, [])
-    for (const s of CATEGORY_DOCK_SLOTS) {
-      const sc = scoreSlot(s, [])
-      if (sc > bestScore) {
-        bestScore = sc
-        best = s
-      }
-    }
-    return [best]
-  }
-
-  const available = [...CATEGORY_DOCK_SLOTS]
-  const placed: Point[] = []
-  const result: Point[] = []
-
-  for (let k = 0; k < dockCount; k++) {
-    let bestIdx = -1
-    let bestScore = -Infinity
-    for (let i = 0; i < available.length; i++) {
-      const sc = scoreSlot(available[i], placed)
-      if (sc > bestScore) {
-        bestScore = sc
-        bestIdx = i
-      }
-    }
-    if (bestIdx < 0) break
-    const chosen = available.splice(bestIdx, 1)[0]
-    placed.push(chosen)
-    result.push(chosen)
-  }
-  return result
-}
-
-function clampCategoryDockAnchor(raw: Point, driftIndex: number): Point {
-  const r = orbitSatelliteEffectiveRadiusPx(CATEGORY_DOCK_DIAMETER)
-  return expandClusterToFit(raw, getMicroDrift(driftIndex), r, [], MICRO_DRIFT_EXTENTS)
-}
-
 /** Sport hub diameter while expanded when there is no theme ring (solo sport). */
 const EXPANDED_HUB_DIAMETER = 320
 /**
  * With a theme ring visible, the next tap is a theme — sport shrinks to “parent” scale and
  * theme nodes take the large hub size (swap vs idle pick-sport flow).
  */
-const SPORT_PARENT_WHEN_THEME_RING_DIAMETER = 224
-const THEME_ORBIT_BASE_DIAMETER = EXPANDED_HUB_DIAMETER
+const SPORT_PARENT_WHEN_THEME_RING_DIAMETER = 200
+/** Moment package bubbles on the sport ring (same size idle vs selected — no shrink on drill-in). */
+const THEME_PACKAGE_RING_BASE = 240
 /**
  * Expanded sport hub: rendered at scale 1 with pulse up to 1.09 (see SportBubble).
  * Used for orbit packing + screen bounds — matches on-screen footprint.
@@ -184,11 +97,6 @@ const IDLE_EVENTS = ['touchstart', 'mousedown', 'keydown'] as const
 function orbitSatelliteEffectiveRadiusPx(diameter: number): number {
   const microPad = 8
   return (diameter / 2) * 1.02 + STAGE_MARGIN * 0.5 + microPad
-}
-
-/** Selected category hub when showing moments (parent scale 0.78, hover 1.02). */
-function categoryHubEffectiveRadiusForMomentsPx(diameter: number): number {
-  return (diameter / 2) * 0.78 * 1.02 + STAGE_MARGIN * 0.5
 }
 
 /**
@@ -247,6 +155,28 @@ function createPackedOrbitOffsets(
   return [...inner, ...outer]
 }
 
+/**
+ * Place child nodes to the left and right of the parent only (keeps moments on-screen horizontally).
+ */
+function createHorizontalOrbitOffsets(
+  count: number,
+  diameters: number[],
+  parentRadius: number,
+  gap: number
+): Point[] {
+  if (count <= 0) return []
+  const childRadii = diameters.map((d) => orbitSatelliteEffectiveRadiusPx(d))
+  const maxCh = maxOf(childRadii)
+  const basePolar = parentRadius + maxCh + gap
+  const laneStep = 2 * maxCh + gap
+  return Array.from({ length: count }, (_, i) => {
+    const side = i % 2 === 0 ? -1 : 1
+    const lane = Math.floor(i / 2)
+    const polar = basePolar + lane * laneStep
+    return { x: side * polar, y: 0 }
+  })
+}
+
 function createRingPointsWithRadii(count: number, radii: number[], angleStartDeg = -90): Point[] {
   if (count <= 0) return []
   return Array.from({ length: count }, (_, index) => {
@@ -303,6 +233,9 @@ function getMicroDriftExtents() {
 
 const MICRO_DRIFT_EXTENTS = getMicroDriftExtents()
 
+/** No positional drift — used after a sport is selected so hubs and rings stay fixed. */
+const STATIC_HUB_DRIFT: { x: number[]; y: number[] } = { x: [0], y: [0] }
+
 /**
  * Trimmed segment between circle centers (container-relative px). Radii from getBoundingClientRect.
  */
@@ -320,17 +253,40 @@ function trimmedSegmentBetweenCircles(
   const y1 = parent.y + uy * parent.r
   const x2 = child.x - ux * child.r
   const y2 = child.y - uy * child.r
-  if (Math.hypot(x2 - x1, y2 - y1) < 6) return null
+  if (Math.hypot(x2 - x1, y2 - y1) < 0.1) return null
   return { x1, y1, x2, y2 }
 }
 
-function circleFromElement(el: HTMLElement | null, containerRect: DOMRect): (Point & { r: number }) | null {
-  if (!el) return null
-  const r = el.getBoundingClientRect()
-  const cx = r.left + r.width / 2 - containerRect.left
-  const cy = r.top + r.height / 2 - containerRect.top
-  const rad = Math.min(r.width, r.height) / 2
-  return { x: cx, y: cy, r: rad }
+/**
+ * Shorten a segment from both ends along the line so stroke (centered on the path) does not
+ * paint past the circle rims — half the stroke width at each end, matching user-unit strokeWidth.
+ */
+function insetSegmentEndpoints(
+  seg: ConnectorSegment,
+  insetStart: number,
+  insetEnd: number
+): ConnectorSegment | null {
+  const dx = seg.x2 - seg.x1
+  const dy = seg.y2 - seg.y1
+  const len = Math.hypot(dx, dy)
+  if (len < 1e-3) return null
+  let s = Math.max(0, insetStart)
+  let e = Math.max(0, insetEnd)
+  const total = s + e
+  if (total >= len - 0.5) {
+    const budget = Math.max(0, len - 0.5)
+    const scale = total > 0 ? budget / total : 0
+    s *= scale
+    e *= scale
+  }
+  const ux = dx / len
+  const uy = dy / len
+  const x1 = seg.x1 + ux * s
+  const y1 = seg.y1 + uy * s
+  const x2 = seg.x2 - ux * e
+  const y2 = seg.y2 - uy * e
+  if (Math.hypot(x2 - x1, y2 - y1) < 0.5) return null
+  return { x1, y1, x2, y2 }
 }
 
 /**
@@ -385,8 +341,365 @@ function clampIdleSportAnchor(raw: Point, driftIndex: number): Point {
   return expandClusterToFit(raw, getDriftAnimation(driftIndex), SPORT_HUB_RADIUS_IDLE, [], MICRO_DRIFT_EXTENTS)
 }
 
-function clampDockPeripheralAnchor(raw: Point, driftIndex: number): Point {
-  return expandClusterToFit(raw, getDriftAnimation(driftIndex), DOCKED_HUB_RADIUS_PX, [], MICRO_DRIFT_EXTENTS)
+function clampDockPeripheralAnchor(raw: Point): Point {
+  return expandClusterToFit(raw, STATIC_HUB_DRIFT, DOCKED_HUB_RADIUS_PX, [], MICRO_DRIFT_EXTENTS)
+}
+
+/** Extra air gap between docked sport circles and cluster / each other (stage px). */
+const DOCKED_SPORT_CLEARANCE_PX = 14
+
+type CircleDef = { x: number; y: number; r: number }
+
+function dedupeAnchorPoints(points: Point[]): Point[] {
+  const seen = new Set<string>()
+  const out: Point[] = []
+  for (const p of points) {
+    const k = `${Math.round(p.x)}:${Math.round(p.y)}`
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(p)
+  }
+  return out
+}
+
+/**
+ * Circles that occupy the “main column” (hub + themes + moments) so docked sports can be
+ * placed outside them.
+ */
+function buildExpandedClusterObstacleCircles(
+  expandedSport: SportData,
+  expandedCategoryId: string | null,
+  expandedClusterAnchor: Point,
+  categoryOffsets: Point[],
+  /** Selected theme hub on the sport ring (not stage-centered). */
+  themeRingAnchor: Point | null,
+  momentItems: { id: string }[],
+  momentOffsets: Point[]
+): CircleDef[] {
+  const circles: CircleDef[] = []
+
+  if (!expandedCategoryId && expandedSport.categories.length > 0) {
+    circles.push({
+      x: expandedClusterAnchor.x,
+      y: expandedClusterAnchor.y,
+      r: SPORT_HUB_EFFECTIVE_RADIUS_THEME_RING_PX,
+    })
+    expandedSport.categories.forEach((_, i) => {
+      const d = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, i)
+      const off = categoryOffsets[i] ?? { x: 0, y: 0 }
+      circles.push({
+        x: expandedClusterAnchor.x + off.x,
+        y: expandedClusterAnchor.y + off.y,
+        r: orbitSatelliteEffectiveRadiusPx(d),
+      })
+    })
+    return circles
+  }
+
+  if (expandedCategoryId && momentItems.length > 0) {
+    if (!themeRingAnchor) return []
+    circles.push({
+      x: expandedClusterAnchor.x,
+      y: expandedClusterAnchor.y,
+      r: SPORT_HUB_EFFECTIVE_RADIUS_THEME_RING_PX,
+    })
+    expandedSport.categories.forEach((cat, i) => {
+      const off = categoryOffsets[i] ?? { x: 0, y: 0 }
+      const cx = expandedClusterAnchor.x + off.x
+      const cy = expandedClusterAnchor.y + off.y
+      const d = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, i)
+      const r = orbitSatelliteEffectiveRadiusPx(d)
+      circles.push({ x: cx, y: cy, r })
+    })
+    const base = momentItems.length > 10 ? 156 : 172
+    momentItems.forEach((_, i) => {
+      const d = momentDiameterForIndex(base, i)
+      const off = momentOffsets[i] ?? { x: 0, y: 0 }
+      circles.push({
+        x: themeRingAnchor.x + off.x,
+        y: themeRingAnchor.y + off.y,
+        r: orbitSatelliteEffectiveRadiusPx(d),
+      })
+    })
+    return circles
+  }
+
+  if (expandedCategoryId && momentItems.length === 0 && themeRingAnchor) {
+    const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
+    const catD = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, catIdx >= 0 ? catIdx : 0)
+    circles.push({
+      x: themeRingAnchor.x,
+      y: themeRingAnchor.y,
+      r: orbitSatelliteEffectiveRadiusPx(catD),
+    })
+    return circles
+  }
+
+  circles.push({
+    x: expandedClusterAnchor.x,
+    y: expandedClusterAnchor.y,
+    r: SPORT_HUB_EFFECTIVE_RADIUS_PX,
+  })
+  return circles
+}
+
+function minClearanceDock(
+  anchor: Point,
+  dockR: number,
+  cluster: CircleDef[],
+  placedCenters: Point[]
+): number {
+  let m = Infinity
+  for (const c of cluster) {
+    const d = Math.hypot(anchor.x - c.x, anchor.y - c.y) - dockR - c.r - DOCKED_SPORT_CLEARANCE_PX
+    m = Math.min(m, d)
+  }
+  for (const p of placedCenters) {
+    const d = Math.hypot(anchor.x - p.x, anchor.y - p.y) - 2 * dockR - ORBIT_GAP_PX
+    m = Math.min(m, d)
+  }
+  return m
+}
+
+/**
+ * Chooses perimeter positions for docked sports so they stay outside the measured cluster footprint.
+ * Greedy in sportsData order; prefers each sport’s static PERIPHERAL_ANCHORS slot when it clears.
+ */
+function computeDockedSportAnchorsAvoidingCluster(
+  allSports: SportData[],
+  expandedSportId: string,
+  preferredById: Record<string, Point>,
+  clusterObstacles: CircleDef[]
+): Record<string, Point> {
+  const dockR = DOCKED_HUB_RADIUS_PX
+  const cluster = clusterObstacles.map((c) => ({
+    ...c,
+    r: c.r + DOCKED_SPORT_CLEARANCE_PX,
+  }))
+
+  const candidatePool = dedupeAnchorPoints([
+    ...Object.values(preferredById),
+    ...CATEGORY_DOCK_SLOTS,
+    { x: 160, y: 200 },
+    { x: 1760, y: 200 },
+    { x: 160, y: 880 },
+    { x: 1760, y: 880 },
+    { x: 280, y: 1000 },
+    { x: 1640, y: 1000 },
+    { x: 120, y: 540 },
+    { x: 1800, y: 540 },
+    { x: 400, y: 180 },
+    { x: 1520, y: 180 },
+    { x: 400, y: 900 },
+    { x: 1520, y: 900 },
+  ]).map((p) => clampDockPeripheralAnchor(p))
+
+  /** Active sport uses hub anchor — only other sports need perimeter dock slots. */
+  const dockedSports = allSports.filter((s) => expandedSportId !== null && expandedSportId !== s.id)
+
+  const result: Record<string, Point> = {}
+  const placed: Point[] = []
+
+  for (const s of dockedSports) {
+    const preferred = clampDockPeripheralAnchor(preferredById[s.id] ?? STAGE_CENTER)
+
+    let best = preferred
+    let bestScore = minClearanceDock(preferred, dockR, cluster, placed)
+
+    for (const cand of candidatePool) {
+      const sc = minClearanceDock(cand, dockR, cluster, placed)
+      if (sc > bestScore) {
+        bestScore = sc
+        best = cand
+      }
+    }
+
+    result[s.id] = best
+    placed.push(best)
+  }
+
+  return result
+}
+
+type ConnectorSegment = { x1: number; y1: number; x2: number; y2: number }
+
+const HUB_CONNECTOR_RADIUS_PX = SPORT_PARENT_WHEN_THEME_RING_DIAMETER / 2
+/** User-space stroke widths (match viewBox); butt caps remove end overlap; inset only bleeds perpendicular to path. */
+const HUB_LINE_STROKE_USER = 6
+const MOMENT_LINE_STROKE_USER = 5
+
+function orbitConnectorEndInset(strokeUser: number): number {
+  // Half-stroke inset was too aggressive (visible gap); ~¼ stroke keeps paint off the fill without a seam.
+  return Math.max(0.5, strokeUser * 0.28)
+}
+
+/**
+ * Orbit connectors: geometry is derived from the same stage-space layout as the bubbles
+ * (`left`/`top` anchors + orbit offsets + diameters). Measuring DOM under CSS `transform: scale()`
+ * was unreliable; this stays aligned with the 1920×1080 coordinate system used for positioning.
+ */
+function OrbitConnectorSvg({
+  expandedSport,
+  expandedClusterAnchor,
+  categoryOffsets,
+  expandedCategoryId,
+  momentItems,
+  selectedThemeRingAnchor,
+  momentOffsets,
+}: {
+  expandedSport: SportData | null
+  expandedClusterAnchor: Point | null
+  categoryOffsets: Point[]
+  expandedCategoryId: string | null
+  momentItems: { id: string }[]
+  selectedThemeRingAnchor: Point | null
+  momentOffsets: Point[]
+}) {
+  const hubSegments = useMemo(() => {
+    const out: Record<string, ConnectorSegment> = {}
+    if (!expandedSport?.categories.length || !expandedClusterAnchor) return out
+
+    const hx = expandedClusterAnchor.x
+    const hy = expandedClusterAnchor.y
+    const hubCircle: Point & { r: number } = { x: hx, y: hy, r: HUB_CONNECTOR_RADIUS_PX }
+
+    expandedSport.categories.forEach((cat, index) => {
+      const offset = categoryOffsets[index] ?? { x: 0, y: 0 }
+      const cx = hx + offset.x
+      const cy = hy + offset.y
+      const baseD = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, index)
+      const childCircle: Point & { r: number } = { x: cx, y: cy, r: baseD / 2 }
+      const seg = trimmedSegmentBetweenCircles(hubCircle, childCircle)
+      if (seg) out[cat.id] = seg
+    })
+    return out
+  }, [expandedSport, expandedClusterAnchor, categoryOffsets])
+
+  const momentSegments = useMemo(() => {
+    const out: Record<string, ConnectorSegment> = {}
+    if (!expandedSport || !expandedCategoryId || !momentItems.length || !selectedThemeRingAnchor) {
+      return out
+    }
+    const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
+    if (catIdx < 0) return out
+
+    const parentD = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, catIdx)
+    const px = selectedThemeRingAnchor.x
+    const py = selectedThemeRingAnchor.y
+    const parentR = parentD / 2
+    const parentCircle: Point & { r: number } = { x: px, y: py, r: parentR }
+
+    const baseMoment = momentItems.length > 10 ? 156 : 172
+    momentItems.forEach((item, mi) => {
+      const off = momentOffsets[mi] ?? { x: 0, y: 0 }
+      const cx = px + off.x
+      const cy = py + off.y
+      const d = momentDiameterForIndex(baseMoment, mi)
+      const childCircle: Point & { r: number } = { x: cx, y: cy, r: d / 2 }
+      const seg = trimmedSegmentBetweenCircles(parentCircle, childCircle)
+      if (seg) out[item.id] = seg
+    })
+    return out
+  }, [
+    expandedSport,
+    expandedCategoryId,
+    momentItems,
+    selectedThemeRingAnchor,
+    momentOffsets,
+  ])
+
+  const hubLineTransition = {
+    pathLength: {
+      duration: 0.55,
+      ease: [0.22, 0.94, 0.36, 1] as const,
+    },
+    opacity: {
+      duration: 0.45,
+      ease: [0.22, 0.94, 0.36, 1] as const,
+    },
+  }
+
+  const momentLineTransition = {
+    pathLength: {
+      duration: 0.5,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+    opacity: {
+      duration: 0.5,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+  }
+
+  return (
+    <svg
+      viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 55,
+        overflow: 'visible',
+      }}
+    >
+      {expandedSport?.categories.map((cat, index) => {
+        const seg = hubSegments[cat.id]
+        if (!seg) return null
+        const inset = orbitConnectorEndInset(HUB_LINE_STROKE_USER)
+        const drawn = insetSegmentEndpoints(seg, inset, inset)
+        if (!drawn) return null
+        const staggerDelay = MOMENTS_START_AFTER_S + index * 0.045
+        return (
+          <motion.path
+            key={`hub-conn-${cat.id}`}
+            d={`M ${drawn.x1} ${drawn.y1} L ${drawn.x2} ${drawn.y2}`}
+            fill="none"
+            stroke="rgba(255, 248, 220, 0.98)"
+            strokeWidth={HUB_LINE_STROKE_USER}
+            strokeLinecap="butt"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{
+              ...hubLineTransition,
+              pathLength: { ...hubLineTransition.pathLength, delay: staggerDelay },
+              opacity: { ...hubLineTransition.opacity, delay: staggerDelay },
+            }}
+          />
+        )
+      })}
+      {expandedSport &&
+        expandedCategoryId &&
+        selectedThemeRingAnchor &&
+        momentItems.map((item, index) => {
+          const seg = momentSegments[item.id]
+          if (!seg) return null
+          const inset = orbitConnectorEndInset(MOMENT_LINE_STROKE_USER)
+          const drawn = insetSegmentEndpoints(seg, inset, inset)
+          if (!drawn) return null
+          const staggerDelay = MOMENTS_START_AFTER_S + index * 0.045
+          return (
+            <motion.path
+              key={`moment-conn-${item.id}`}
+              d={`M ${drawn.x1} ${drawn.y1} L ${drawn.x2} ${drawn.y2}`}
+              fill="none"
+              stroke="rgba(200, 235, 255, 0.95)"
+              strokeWidth={MOMENT_LINE_STROKE_USER}
+              strokeLinecap="butt"
+              initial={{ pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{
+                ...momentLineTransition,
+                pathLength: { ...momentLineTransition.pathLength, delay: staggerDelay },
+                opacity: { ...momentLineTransition.opacity, delay: staggerDelay },
+              }}
+            />
+          )
+        })}
+    </svg>
+  )
 }
 
 function ExperienceBackground() {
@@ -500,66 +813,17 @@ export default function App() {
 
   const momentOffsets = useMemo(() => {
     if (!expandedSport || !expandedCategoryId || !momentItems.length) return []
-    const base = momentItems.length > 10 ? 182 : 204
+    const base = momentItems.length > 10 ? 156 : 172
     const diameters = momentItems.map((_, i) => momentDiameterForIndex(base, i))
     const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
-    const catD = momentDiameterForIndex(224, catIdx >= 0 ? catIdx : 0)
-    const parentR = categoryHubEffectiveRadiusForMomentsPx(catD)
-    return createPackedOrbitOffsets(momentItems.length, diameters, parentR, ORBIT_GAP_PX)
-  }, [momentItems, expandedSport, expandedCategoryId])
-
-  /** When moments are shown, center the active category + its ring in the open stage area (easel). */
-  const momentsEaselAnchor = useMemo(() => {
-    if (!expandedSport || !expandedCategoryId || !momentItems.length) return null
-    const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
-    if (catIdx < 0) return null
-    const base = momentItems.length > 10 ? 182 : 204
-    const diameters = momentItems.map((_, i) => momentDiameterForIndex(base, i))
-    const catD = momentDiameterForIndex(224, catIdx)
-    const parentR = categoryHubEffectiveRadiusForMomentsPx(catD)
-    const hubDrift = getMicroDrift(catIdx)
-    const orbitPoints = momentItems.map((_, i) => ({
-      offset: momentOffsets[i] ?? { x: 0, y: 0 },
-      radius: orbitSatelliteEffectiveRadiusPx(diameters[i]),
-    }))
-    return expandClusterToFit(STAGE_CENTER, hubDrift, parentR, orbitPoints, MICRO_DRIFT_EXTENTS)
-  }, [expandedSport, expandedCategoryId, momentItems, momentOffsets])
-
-  /** Selected category with no moments — center it alone (easel). */
-  const categorySoloEaselAnchor = useMemo(() => {
-    if (!expandedSport || !expandedCategoryId || momentItems.length > 0) return null
-    const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
-    if (catIdx < 0) return null
-    const catD = momentDiameterForIndex(224, catIdx)
+    const catD = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, catIdx >= 0 ? catIdx : 0)
     const parentR = orbitSatelliteEffectiveRadiusPx(catD)
-    const hubDrift = getMicroDrift(catIdx)
-    return expandClusterToFit(STAGE_CENTER, hubDrift, parentR, [], MICRO_DRIFT_EXTENTS)
-  }, [expandedSport, expandedCategoryId, momentItems.length])
-
-  /** Non-selected category dock positions while moments are open — avoid overlapping the moment ring. */
-  const categoryDockAnchorsWhenMoments = useMemo(() => {
-    if (!expandedSport || !expandedCategoryId || !momentsEaselAnchor || momentItems.length === 0) return null
-    const nonSelected = expandedSport.categories.filter((c) => c.id !== expandedCategoryId)
-    const base = momentItems.length > 10 ? 182 : 204
-    const momentDiameters = momentItems.map((_, i) => momentDiameterForIndex(base, i))
-    const raw = computeOptimalCategoryDocksForMoments(
-      momentsEaselAnchor,
-      momentOffsets,
-      momentDiameters,
-      nonSelected.length
-    )
-    return nonSelected.map((_, i) => clampCategoryDockAnchor(raw[i] ?? CATEGORY_DOCK_SLOTS[i % CATEGORY_DOCK_SLOTS.length], i))
-  }, [
-    expandedSport,
-    expandedCategoryId,
-    momentItems,
-    momentsEaselAnchor,
-    momentOffsets,
-  ])
+    return createHorizontalOrbitOffsets(momentItems.length, diameters, parentR, ORBIT_GAP_PX)
+  }, [momentItems, expandedSport, expandedCategoryId])
 
   const categoryOffsets = useMemo(() => {
     if (!expandedSport) return []
-    const base = THEME_ORBIT_BASE_DIAMETER
+    const base = THEME_PACKAGE_RING_BASE
     const diameters = expandedSport.categories.map((_, index) => momentDiameterForIndex(base, index))
     return createPackedOrbitOffsets(
       expandedSport.categories.length,
@@ -571,14 +835,12 @@ export default function App() {
 
   const expandedClusterAnchor = useMemo(() => {
     if (!expandedSportId || !expandedSport) return null
-    const sportIndex = sportsData.findIndex((s) => s.id === expandedSportId)
-    if (sportIndex < 0) return null
-    const hubDrift = getDriftAnimation(sportIndex)
-    /** Step 2 (no category): pack hub + category ring. Step 3: hub centered — others dock on perimeter. */
-    if (!expandedCategoryId && expandedSport.categories.length > 0) {
-      const raw = SPORT_ANCHORS[expandedSport.id] ?? STAGE_CENTER
+    const hubDrift = STATIC_HUB_DRIFT
+    /** Hub + full theme ring — same anchor after a moment package is selected (sport stays fixed). */
+    if (expandedSport.categories.length > 0) {
+      const raw = STAGE_CENTER
       const orbitPoints = expandedSport.categories.map((_, i) => {
-        const d = momentDiameterForIndex(THEME_ORBIT_BASE_DIAMETER, i)
+        const d = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, i)
         return {
           offset: categoryOffsets[i] ?? { x: 0, y: 0 },
           radius: orbitSatelliteEffectiveRadiusPx(d),
@@ -586,90 +848,40 @@ export default function App() {
       })
       return expandClusterToFit(raw, hubDrift, SPORT_HUB_EFFECTIVE_RADIUS_THEME_RING_PX, orbitPoints, MICRO_DRIFT_EXTENTS)
     }
-    const raw =
-      expandedSport.categories.length > 0 ? STAGE_CENTER : SPORT_ANCHORS[expandedSport.id] ?? STAGE_CENTER
+    const raw = SPORT_ANCHORS[expandedSport.id] ?? STAGE_CENTER
     return expandClusterToFit(raw, hubDrift, SPORT_HUB_EFFECTIVE_RADIUS_PX, [], MICRO_DRIFT_EXTENTS)
-  }, [expandedSportId, expandedSport, expandedCategoryId, categoryOffsets])
+  }, [expandedSportId, expandedSport, categoryOffsets])
 
-  const selectedCategoryAnchor = useMemo(() => {
+  /** Selected theme stays on the sport ring; moments orbit from here (no re-centering). */
+  const selectedThemeRingAnchor = useMemo((): Point | null => {
     if (!expandedSport || !expandedCategoryId || !expandedClusterAnchor) return null
-    const expandedCategoryIndex = expandedSport.categories.findIndex(
-      (category) => category.id === expandedCategoryId
+    const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
+    if (catIdx < 0) return null
+    const off = categoryOffsets[catIdx] ?? { x: 0, y: 0 }
+    return { x: expandedClusterAnchor.x + off.x, y: expandedClusterAnchor.y + off.y }
+  }, [expandedSport, expandedCategoryId, expandedClusterAnchor, categoryOffsets])
+
+  /**
+   * Perimeter sport positions — use the hub + theme ring footprint only (not moment satellites).
+   * Otherwise the obstacle set grows when a moment package opens and dock positions re-solve,
+   * which makes other sports jump around on every package change.
+   */
+  const dockedSportAnchorsResolved = useMemo(() => {
+    if (!expandedSportId || !expandedSport || !expandedClusterAnchor) return null
+    const obs = buildExpandedClusterObstacleCircles(
+      expandedSport,
+      null,
+      expandedClusterAnchor,
+      categoryOffsets,
+      null,
+      [],
+      []
     )
-    if (expandedCategoryIndex < 0) return null
-    if (momentItems.length > 0 && momentsEaselAnchor) {
-      return momentsEaselAnchor
-    }
-    if (momentItems.length === 0 && categorySoloEaselAnchor) {
-      return categorySoloEaselAnchor
-    }
-    return null
-  }, [expandedCategoryId, expandedSport, expandedClusterAnchor, momentItems.length, momentsEaselAnchor, categorySoloEaselAnchor])
+    if (obs.length === 0) return null
+    return computeDockedSportAnchorsAvoidingCluster(sportsData, expandedSportId, PERIPHERAL_ANCHORS, obs)
+  }, [expandedSportId, expandedSport, expandedClusterAnchor, categoryOffsets])
 
   const experienceRef = useRef<HTMLDivElement>(null)
-  const connectorsSvgRef = useRef<SVGSVGElement>(null)
-  const hubRef = useRef<HTMLButtonElement | null>(null)
-  const categoryBubbleRefs = useRef<(HTMLButtonElement | null)[]>([])
-  const selectedCategoryBubbleRef = useRef<HTMLButtonElement | null>(null)
-  const momentBubbleRefs = useRef<(HTMLButtonElement | null)[]>([])
-  const hubLineElsRef = useRef<Map<string, SVGLineElement>>(new Map())
-  const momentLineElsRef = useRef<Map<string, SVGLineElement>>(new Map())
-
-  useEffect(() => {
-    if (!expandedCategoryId) selectedCategoryBubbleRef.current = null
-  }, [expandedCategoryId])
-
-  useLayoutEffect(() => {
-    const container = experienceRef.current
-    if (!container || !hasEngaged) return
-
-    let raf = 0
-    const tick = () => {
-      const cr = container.getBoundingClientRect()
-      connectorsSvgRef.current?.setAttribute('viewBox', `0 0 ${cr.width} ${cr.height}`)
-
-      const hub = circleFromElement(hubRef.current, cr)
-
-      if (expandedSport?.categories.length && hub) {
-        expandedSport.categories.forEach((cat) => {
-          const idx = expandedSport.categories.findIndex((c) => c.id === cat.id)
-          const childEl = idx >= 0 ? categoryBubbleRefs.current[idx] : null
-          const child = circleFromElement(childEl, cr)
-          const lineEl = hubLineElsRef.current.get(cat.id)
-          if (!lineEl) return
-          if (!child) return
-          const seg = trimmedSegmentBetweenCircles(hub, child)
-          if (seg) {
-            lineEl.setAttribute('x1', String(seg.x1))
-            lineEl.setAttribute('y1', String(seg.y1))
-            lineEl.setAttribute('x2', String(seg.x2))
-            lineEl.setAttribute('y2', String(seg.y2))
-          }
-        })
-      }
-
-      if (expandedCategoryId && momentItems.length) {
-        const parent = circleFromElement(selectedCategoryBubbleRef.current, cr)
-        momentItems.forEach((item, mi) => {
-          const child = circleFromElement(momentBubbleRefs.current[mi], cr)
-          const lineEl = momentLineElsRef.current.get(item.id)
-          if (!lineEl) return
-          if (!parent || !child) return
-          const seg = trimmedSegmentBetweenCircles(parent, child)
-          if (seg) {
-            lineEl.setAttribute('x1', String(seg.x1))
-            lineEl.setAttribute('y1', String(seg.y1))
-            lineEl.setAttribute('x2', String(seg.x2))
-            lineEl.setAttribute('y2', String(seg.y2))
-          }
-        })
-      }
-
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [hasEngaged, expandedSport, expandedSportId, expandedCategoryId, momentItems])
 
   const handleEngage = useCallback(() => {
     setHasEngaged(true)
@@ -729,82 +941,15 @@ export default function App() {
               >
                 <ExperienceBackground />
 
-                <style>{`
-                  .orbit-connector-line {
-                    fill: none;
-                    stroke-linecap: round;
-                  }
-                  .orbit-connector-line--hub {
-                    stroke: rgba(200,215,255,0.42);
-                    stroke-width: 2.25;
-                  }
-                  .orbit-connector-line--moment {
-                    stroke: rgba(180,205,255,0.5);
-                    stroke-width: 2;
-                  }
-                `}</style>
-
-                <svg
-                  ref={connectorsSvgRef}
-                  aria-hidden
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    width: '100%',
-                    height: '100%',
-                    pointerEvents: 'none',
-                    zIndex: 33,
-                    overflow: 'visible',
-                  }}
-                >
-                  {expandedSport &&
-                    expandedSport.categories.map((cat, index) => {
-                      const delayS = MOMENTS_START_AFTER_S + index * 0.045
-                      return (
-                        <motion.line
-                          key={`hub-conn-${cat.id}`}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{
-                            type: 'spring',
-                            stiffness: 175,
-                            damping: 20,
-                            mass: 0.85,
-                            delay: delayS,
-                          }}
-                          ref={(el) => {
-                            if (el) hubLineElsRef.current.set(cat.id, el)
-                            else hubLineElsRef.current.delete(cat.id)
-                          }}
-                          className="orbit-connector-line orbit-connector-line--hub"
-                        />
-                      )
-                    })}
-                  {expandedSport &&
-                    expandedCategoryId &&
-                    momentItems.map((item, index) => {
-                      const delayS = MOMENTS_START_AFTER_S + index * 0.045
-                      return (
-                        <motion.line
-                          key={`moment-conn-${item.id}`}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{
-                            type: 'spring',
-                            stiffness: 175,
-                            damping: 20,
-                            mass: 0.85,
-                            delay: delayS,
-                          }}
-                          ref={(el) => {
-                            if (el) momentLineElsRef.current.set(item.id, el)
-                            else momentLineElsRef.current.delete(item.id)
-                          }}
-                          className="orbit-connector-line orbit-connector-line--moment"
-                        />
-                      )
-                    })}
-                </svg>
+                <OrbitConnectorSvg
+                  expandedSport={expandedSport}
+                  expandedClusterAnchor={expandedClusterAnchor}
+                  categoryOffsets={categoryOffsets}
+                  expandedCategoryId={expandedCategoryId}
+                  momentItems={momentItems}
+                  selectedThemeRingAnchor={selectedThemeRingAnchor}
+                  momentOffsets={momentOffsets}
+                />
 
                 <AnimatePresence>
                   {expandedSport && (
@@ -842,26 +987,38 @@ export default function App() {
                 <AnimatePresence>
                   {sportsData.map((sport, index) => {
                     const isExpandedSport = expandedSportId === sport.id
-                    /** Dock on perimeter: other sports, or active sport once a category is chosen. */
-                    const isSportPerimeterDock =
-                      expandedSportId !== null &&
-                      (!isExpandedSport || expandedCategoryId !== null)
-                    const isHubCentered = isExpandedSport && expandedClusterAnchor && expandedCategoryId === null
-                    /** Halo targets the deepest visible tier: sports on the grid, or an expanded sport with no theme children. */
+                    /** Only non-expanded sports dock on the perimeter — active sport stays at cluster anchor. */
+                    const isSportPerimeterDock = expandedSportId !== null && !isExpandedSport
+                    const useExpandedHubAnchor = isExpandedSport && expandedClusterAnchor
+                    /** Halo / pulse only for the active hub — docked perimeter sports stay visually quiet + transparent. */
                     const sportIsPrimaryAction =
-                      !isExpandedSport ||
-                      (isExpandedSport && expandedCategoryId === null && sport.categories.length === 0)
+                      !isSportPerimeterDock &&
+                      (!isExpandedSport ||
+                        (isExpandedSport && expandedCategoryId === null && sport.categories.length === 0))
                     const drift = isSportPerimeterDock ? getMicroDrift(index) : getDriftAnimation(index)
-                    const anchor = isHubCentered
+                    const isFloatingPickSport = expandedSportId === null
+                    const positionDrift = isFloatingPickSport ? drift : { x: [0], y: [0], duration: 1 }
+                    const anchor = useExpandedHubAnchor
                       ? expandedClusterAnchor
                       : expandedSportId
-                        ? clampDockPeripheralAnchor(PERIPHERAL_ANCHORS[sport.id] ?? STAGE_CENTER, index)
+                        ? dockedSportAnchorsResolved?.[sport.id] ??
+                          clampDockPeripheralAnchor(PERIPHERAL_ANCHORS[sport.id] ?? STAGE_CENTER)
                         : clampIdleSportAnchor(SPORT_ANCHORS[sport.id] ?? STAGE_CENTER, index)
+
+                    const sportStackZIndex = isSportPerimeterDock
+                      ? Z_INDEX_DOCKED_SPORT
+                      : isExpandedSport
+                        ? sport.categories.length > 0
+                          ? 43
+                          : 40
+                        : expandedSportId
+                          ? 28
+                          : 32 - index
 
                     return (
                       <motion.div
                         key={`drift-${sport.id}`}
-                        style={{ position: 'absolute' }}
+                        style={{ position: 'absolute', zIndex: sportStackZIndex }}
                         initial={{ left: anchor.x, top: anchor.y }}
                         animate={{ left: anchor.x, top: anchor.y }}
                         transition={{
@@ -870,14 +1027,18 @@ export default function App() {
                         }}
                       >
                         <motion.div
-                          initial={{ x: drift.x[1] * 0.5, y: drift.y[1] * 0.5 }}
-                          animate={{ x: drift.x, y: drift.y }}
+                          initial={{
+                            x: isFloatingPickSport ? drift.x[1] * 0.5 : 0,
+                            y: isFloatingPickSport ? drift.y[1] * 0.5 : 0,
+                          }}
+                          animate={{ x: positionDrift.x, y: positionDrift.y }}
                           transition={{
-                            duration:
-                              isExpandedSport && expandedCategoryId === null
+                            duration: isFloatingPickSport
+                              ? isExpandedSport && expandedCategoryId === null
                                 ? drift.duration * 4
-                                : drift.duration,
-                            repeat: Infinity,
+                                : drift.duration
+                              : 0.4,
+                            repeat: isFloatingPickSport ? Infinity : 0,
                             repeatType: 'loop',
                             ease: 'easeInOut',
                           }}
@@ -886,14 +1047,6 @@ export default function App() {
                             transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
                             style={{
                               position: 'relative',
-                              zIndex:
-                                isExpandedSport && expandedCategoryId === null
-                                  ? sport.categories.length > 0
-                                    ? 30
-                                    : 40
-                                  : expandedSportId
-                                    ? 28
-                                    : 32 - index,
                             }}
                             initial={{ opacity: 0, scale: 0.86, x: 0, y: 0 }}
                             animate={{
@@ -922,10 +1075,9 @@ export default function App() {
                             }}
                           >
                             <SportBubble
-                              ref={isExpandedSport ? hubRef : undefined}
                               label={sport.name}
                               diameter={
-                                isExpandedSport && expandedCategoryId === null
+                                isExpandedSport
                                   ? sport.categories.length > 0
                                     ? SPORT_PARENT_WHEN_THEME_RING_DIAMETER
                                     : EXPANDED_HUB_DIAMETER
@@ -961,63 +1113,13 @@ export default function App() {
                       const isExpandedCategory = expandedCategoryId === category.id
                       const ringLeft = sportAnchor.x + offset.x
                       const ringTop = sportAnchor.y + offset.y
-                      const nonSelectedCategories = expandedCategoryId
-                        ? expandedSport.categories.filter((c) => c.id !== expandedCategoryId)
-                        : []
-                      const dockSlotsCount = nonSelectedCategories.length
-                      const dockOrderAmongNonSelected = expandedCategoryId
-                        ? nonSelectedCategories.findIndex((c) => c.id === category.id)
-                        : -1
-                      const dockNonSelected =
-                        expandedCategoryId !== null && !isExpandedCategory && dockOrderAmongNonSelected >= 0
-                      const dockedAnchor = dockNonSelected
-                        ? momentItems.length > 0 && categoryDockAnchorsWhenMoments
-                          ? categoryDockAnchorsWhenMoments[dockOrderAmongNonSelected] ??
-                            clampCategoryDockAnchor(
-                              categoryDockSlotForIndex(
-                                dockOrderAmongNonSelected,
-                                Math.max(1, dockSlotsCount)
-                              ),
-                              index
-                            )
-                          : clampCategoryDockAnchor(
-                              categoryDockSlotForIndex(
-                                dockOrderAmongNonSelected,
-                                Math.max(1, dockSlotsCount)
-                              ),
-                              index
-                            )
-                        : null
-                      const isMomentsEasel =
-                        isExpandedCategory && momentItems.length > 0 && momentsEaselAnchor !== null
-                      const isSoloEasel =
-                        isExpandedCategory && momentItems.length === 0 && categorySoloEaselAnchor !== null
-                      const anchorLeft = isMomentsEasel
-                        ? momentsEaselAnchor!.x
-                        : isSoloEasel
-                          ? categorySoloEaselAnchor!.x
-                          : dockNonSelected && dockedAnchor
-                            ? dockedAnchor.x
-                            : ringLeft
-                      const anchorTop = isMomentsEasel
-                        ? momentsEaselAnchor!.y
-                        : isSoloEasel
-                          ? categorySoloEaselAnchor!.y
-                          : dockNonSelected && dockedAnchor
-                            ? dockedAnchor.y
-                            : ringTop
-                      const isCategoryDocked = dockNonSelected
+                      const anchorLeft = ringLeft
+                      const anchorTop = ringTop
                       /** Themes pulse when no theme is selected; a solo theme with no moments is the leaf target. */
                       const categoryIsPrimaryAction =
                         expandedCategoryId === null ||
                         (isExpandedCategory && momentItems.length === 0)
-                      const bubbleDiameter = isCategoryDocked
-                        ? CATEGORY_DOCK_DIAMETER
-                        : momentDiameterForIndex(
-                            expandedCategoryId === null ? THEME_ORBIT_BASE_DIAMETER : 224,
-                            index
-                          )
-                      const microDrift = getMicroDrift(index)
+                      const bubbleDiameter = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, index)
                       const orbitStartDelay = MOMENTS_START_AFTER_S + index * 0.045
 
                       return (
@@ -1035,11 +1137,10 @@ export default function App() {
                           }}
                         >
                           <motion.div
-                            animate={{ x: microDrift.x, y: microDrift.y }}
+                            animate={{ x: 0, y: 0 }}
                             transition={{
-                              duration: microDrift.duration,
-                              repeat: Infinity,
-                              repeatType: 'loop',
+                              duration: 0.25,
+                              repeat: 0,
                               ease: 'easeInOut',
                             }}
                             style={{ position: 'relative' }}
@@ -1058,7 +1159,7 @@ export default function App() {
                             }}
                             animate={{
                               opacity: 1,
-                              scale: isExpandedCategory && momentItems.length > 0 ? 0.78 : 1,
+                              scale: 1,
                               x: 0,
                               y: 0,
                             }}
@@ -1070,18 +1171,28 @@ export default function App() {
                               transition: { delay: 0, duration: 0.22, ease: 'easeIn' },
                             }}
                             transition={{
-                              type: 'spring',
-                              stiffness: 175,
-                              damping: 20,
-                              mass: 0.85,
-                              delay: orbitStartDelay,
+                              opacity: {
+                                duration: 0.45,
+                                delay: orbitStartDelay,
+                                ease: [0.22, 0.94, 0.36, 1],
+                              },
+                              x: {
+                                type: 'spring',
+                                stiffness: 175,
+                                damping: 20,
+                                mass: 0.85,
+                                delay: orbitStartDelay,
+                              },
+                              y: {
+                                type: 'spring',
+                                stiffness: 175,
+                                damping: 20,
+                                mass: 0.85,
+                                delay: orbitStartDelay,
+                              },
                             }}
                           >
                             <MomentBubble
-                              ref={(el) => {
-                                categoryBubbleRefs.current[index] = el
-                                if (isExpandedCategory) selectedCategoryBubbleRef.current = el
-                              }}
                               label={category.name}
                               diameter={bubbleDiameter}
                               phase={(index % 5) * 0.6 + 0.5}
@@ -1090,6 +1201,7 @@ export default function App() {
                               isDimmed={false}
                               isPeripheral={expandedCategoryId !== null && !isExpandedCategory}
                               isPrimaryAction={categoryIsPrimaryAction}
+                              disableAmbientMotion
                               onTap={() => handleCategoryTap(category.id)}
                             />
                           </motion.div>
@@ -1102,12 +1214,11 @@ export default function App() {
                 <AnimatePresence>
                   {expandedSport &&
                     expandedCategoryId &&
-                    selectedCategoryAnchor &&
+                    selectedThemeRingAnchor &&
                     momentItems.map((item, index) => {
-                      const baseDiameter = momentItems.length > 10 ? 182 : 204
+                      const baseDiameter = momentItems.length > 10 ? 156 : 172
                       const bubbleDiameter = momentDiameterForIndex(baseDiameter, index)
                       const offset = momentOffsets[index] ?? { x: 0, y: 0 }
-                      const microDrift = getMicroDrift(index)
                       const orbitStartDelay = MOMENTS_START_AFTER_S + index * 0.045
 
                       return (
@@ -1115,15 +1226,14 @@ export default function App() {
                           key={`orbit-drift-moment-${item.id}`}
                           style={{
                             position: 'absolute',
-                            left: selectedCategoryAnchor.x + offset.x,
-                            top: selectedCategoryAnchor.y + offset.y,
+                            left: selectedThemeRingAnchor.x + offset.x,
+                            top: selectedThemeRingAnchor.y + offset.y,
                             zIndex: 34,
                           }}
-                          animate={{ x: microDrift.x, y: microDrift.y }}
+                          animate={{ x: 0, y: 0 }}
                           transition={{
-                            duration: microDrift.duration,
-                            repeat: Infinity,
-                            repeatType: 'loop',
+                            duration: 0.25,
+                            repeat: 0,
                             ease: 'easeInOut',
                           }}
                         >
@@ -1133,37 +1243,23 @@ export default function App() {
                             style={{
                               position: 'relative',
                             }}
-                            initial={{
-                              opacity: 0,
-                              x: -offset.x,
-                              y: -offset.y,
-                              scale: 0.2,
-                            }}
-                            animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
                             exit={{
                               opacity: 0,
-                              x: -offset.x * 0.28,
-                              y: -offset.y * 0.28,
-                              scale: 0.35,
-                              transition: { delay: 0, duration: 0.22, ease: 'easeIn' },
+                              transition: { duration: 0.2, ease: 'easeIn' },
                             }}
                             transition={{
-                              type: 'spring',
-                              stiffness: 175,
-                              damping: 20,
-                              mass: 0.85,
-                              delay: orbitStartDelay,
+                              opacity: { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: orbitStartDelay },
                             }}
                           >
                             <MomentBubble
-                              ref={(el) => {
-                                momentBubbleRefs.current[index] = el
-                              }}
                               label={item.label}
                               diameter={bubbleDiameter}
                               phase={(index % 5) * 0.6 + 0.5}
                               layer="moment"
                               isPrimaryAction
+                              disableAmbientMotion
                               onTap={() => setSelectedMomentId(item.id)}
                             />
                           </motion.div>

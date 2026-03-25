@@ -1,67 +1,74 @@
 # Genius Moments Wall
 
-A full-screen touch-first kiosk experience for exploring premium sports moment packages. The current app is a single-page interactive journey: idle attract -> sport selection bubbles -> orbiting moment bubbles -> moment detail panel.
+A full-screen, touch-first kiosk experience for exploring premium sports moment packages. The app is a single-page interactive journey: idle attract → sport selection → category (theme) selection → orbiting moment bubbles → moment detail panel.
 
 ---
 
 ## Overview
 
-This build demonstrates a single continuous interaction model for live-demo environments (events, sales floors, control rooms, and in-venue displays). Users engage from an attract screen, select one of two sport hubs (**NFL** or **March Madness**), then browse moment packages in an animated orbit around the selected hub.
+This build targets live-demo environments (events, sales floors, control rooms, and in-venue displays). After the attract screen, guests see a **six-sport** canvas—**March Madness**, **NFL**, **NBA**, **World Cup**, **MLB**, and **NWSL**—then drill down by sport, then by **category** (grouped themes), then into individual **moments** with trigger copy and descriptions.
 
-The app is designed for **1920x1080 landscape** and scales the fixed stage to the viewport.
+The experience is designed for **1920×1080 landscape**. A fixed design stage is scaled to the viewport via `Stage`.
 
 ---
 
 ## Current Experience Flow
 
 1. **Idle attract**
-   - Full-screen branded entry with animated background and data chips.
-   - Tap/click anywhere to begin.
-2. **Single-screen interactive canvas**
-   - "Premium Moments Packages" headline.
-   - Two large sport bubbles: **NFL** and **March Madness**.
+   - Full-screen branded entry with animated bars background and data chips.
+   - Tap or click anywhere to begin.
+2. **Sport canvas**
+   - “Premium Moments Packages” headline and six sport hub bubbles on an anchored layout.
 3. **Sport expansion**
-   - Selected sport bubble moves to center, scales down, and reveals orbiting moment bubbles.
-4. **Moment detail overlay**
-   - Tap a moment bubble to open a modal panel with trigger + package description.
-   - Close panel to return to the expanded sport view.
-5. **Back / Reset**
-   - **Back** collapses the expanded sport and returns to the two-sport selection state.
-   - **Reset** (kiosk control) returns all the way to idle attract.
+   - The chosen sport becomes the active hub. Other sports **dock** to the perimeter so the center stays clear.
+   - If the sport has **categories**, they appear in an orbit around the hub; otherwise the hub stays centered alone.
+4. **Category selection**
+   - Tap a category to open its **moment ring** around the category hub. Other categories move to perimeter docks, placed to avoid overlapping the moment orbit when possible.
+5. **Moment detail**
+   - Tap a moment bubble to open the modal detail panel (trigger + package description, optional example chips).
+   - Closing the panel or using **Back** steps up the hierarchy: moment → category ring → sport selection.
+6. **Navigation**
+   - **Back** (top right while expanded): closes the open moment, then collapses category, then returns to the all-sports canvas.
+   - **Reset** (circular kiosk control): returns straight to idle attract.
+7. **Idle timeout**
+   - After **45 seconds** without `touchstart`, `mousedown`, or `keydown`, the app returns to idle attract.
 
 ---
 
 ## Features
 
-- **Single-page architecture** - No route/page changes during core flow; transitions are animated within one screen tree in `App.tsx`.
-- **Touch-first interactions** - Core controls respond to `onTouchStart` and `onClick`.
-- **Idle timeout** - Returns to idle after `45_000ms` of inactivity (`touchstart`, `mousedown`, `keydown`).
-- **Fixed-stage scaling** - `Stage` preserves visual layout by scaling a 1920x1080 design surface.
-- **Orientation guard** - Shows rotate prompt in unsupported orientations.
-- **Kiosk reset control** - Quick reset button for staffed demos.
-- **Animated orbit system** - Moment bubbles fan out in one or two rings depending on moment count, with deterministic size variation for visual texture.
+- **Single-page state machine** — No router; flow lives in `App.tsx` with animated transitions.
+- **Touch-first** — Core targets use `onTouchStart` and `onClick`.
+- **Fixed-stage scaling** — `Stage` scales a 1920×1080 layout surface.
+- **Orientation guard** — Prompts rotation in unsupported orientations.
+- **Orbit layout** — Packed rings for categories and moments, with SVG connector lines from hub to satellites.
+- **Perimeter docking** — Non-active sports and categories animate to edge slots; moment view uses clearance scoring to reduce overlap.
 
 ---
 
 ## Data Model
 
-The live UI is driven by `src/data/sportsData.ts`.
+Content is defined in `src/data/sportsData.ts`.
 
 ### `SportData`
 
-- `id`: sport identifier (used for anchor/selection logic)
-- `name`: display label inside the sport bubble
-- `bubbleImage`: background image used on the bubble
-- `gradient`, `glow`: visual treatment values
-- `moments`: list of `SportMoment`
+- `id` — Stable key (matches anchor maps in `App.tsx`).
+- `name` — Label on the sport bubble.
+- `gradient`, `glow` — Visual treatment (idle styling; active hub uses shared parent tokens from the same module).
+- `categories` — Array of `SportCategory`.
+
+### `SportCategory`
+
+- `id`, `name` — Category hub identity and label.
+- `moments` — List of `SportMoment`.
 
 ### `SportMoment`
 
-- `id`: stable key
-- `name`: bubble + panel title
-- `trigger`: trigger condition shown in detail panel
-- `description`: package narrative copy
-- `examples?`: optional chips shown below description
+- `id` — Stable key.
+- `name` — Bubble and panel title.
+- `trigger` — Trigger condition in the detail panel.
+- `description` — Package narrative.
+- `examples?` — Optional chips below the description.
 
 ---
 
@@ -69,25 +76,25 @@ The live UI is driven by `src/data/sportsData.ts`.
 
 ```text
 ├── public/
-│   ├── genius-sports-logo.png
-│   ├── nfl.jpg
-│   └── march_madness.png
+│   ├── genius-sports-logo.png          # Brand mark (attract + experience header)
+│   └── …                               # Additional media (e.g. video/images for other experiments)
 └── src/
-    ├── App.tsx                         # Single-screen state machine + orchestration
-    ├── tokens.ts                       # IDLE_TIMEOUT_MS and shared tokens
+    ├── App.tsx                         # State machine, anchors, orbit math, connectors
+    ├── tokens.ts                       # `IDLE_TIMEOUT_MS`, colors, legacy cinematic timings
     ├── data/
-    │   └── sportsData.ts               # Live sport + moment content
+    │   └── sportsData.ts               # Sports, categories, moments
     └── components/
-        ├── IdleAttract.tsx             # Entry attract screen
-        ├── SportBubble.tsx             # Large sport hub bubble
-        ├── MomentBubble.tsx            # Orbiting moment bubble
-        ├── MomentDetailPanel.tsx       # Modal detail panel
-        ├── KioskControls.tsx
+        ├── IdleAttract.tsx
+        ├── SportBubble.tsx
+        ├── MomentBubble.tsx
+        ├── MomentDetailPanel.tsx
+        ├── AnimatedBarsBackground.tsx
+        ├── KioskControls.tsx           # Reset-to-idle
         ├── OrientationGuard.tsx
         └── Stage.tsx
 ```
 
-> Note: Legacy components/data from earlier multi-screen/cinematic flows still exist in the repo, but the active experience is the single-page flow above.
+Other components under `src/components/` are from earlier cinematic or multi-screen experiments and are not part of the active flow described above.
 
 ---
 
@@ -98,7 +105,7 @@ The live UI is driven by `src/data/sportsData.ts`.
 - Framer Motion 11
 - Tailwind CSS (plus inline styles for precise kiosk layout)
 
-Node 18+ recommended.
+Node **18+** recommended.
 
 ---
 
@@ -116,7 +123,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite (usually `http://localhost:5173`).
+Open the URL Vite prints (usually `http://localhost:5173`).
 
 ### Build
 
@@ -134,17 +141,17 @@ npm run preview
 
 ## Configuration Notes
 
-- **Idle timeout:** `src/tokens.ts` -> `IDLE_TIMEOUT_MS`
-- **Interactive content:** `src/data/sportsData.ts`
-- **Sport anchor layout/orbit behavior:** `src/App.tsx` constants and helper functions
+- **Idle timeout:** `src/tokens.ts` → `IDLE_TIMEOUT_MS`
+- **Copy and hierarchy:** `src/data/sportsData.ts`
+- **Layout / orbit / dock behavior:** `src/App.tsx` (anchors, `PERIPHERAL_ANCHORS`, `CATEGORY_DOCK_SLOTS`, packing helpers)
 
 ---
 
 ## Kiosk Deployment Notes
 
-- Run in full-screen landscape.
-- Keep image assets in `public/` so root-relative paths resolve.
-- Mouse/keyboard/touch input all keep the kiosk "awake" by resetting idle timeout.
+- Run fullscreen in landscape at 1920×1080 (or let `Stage` scale).
+- Keep assets referenced with root paths (e.g. `/genius-sports-logo.png`) under `public/`.
+- Mouse, keyboard, and touch all refresh the idle timer.
 
 ---
 

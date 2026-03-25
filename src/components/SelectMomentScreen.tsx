@@ -309,7 +309,6 @@ export default function SelectMomentScreen({ category, onSelectMoment, onBack }:
             whileHover={{
               background: 'rgba(255,255,255,0.13)',
               borderColor: 'rgba(255,255,255,0.30)',
-              scale: 1.02,
               transition: { duration: 0.18 },
             }}
             whileTap={{ scale: 0.97 }}

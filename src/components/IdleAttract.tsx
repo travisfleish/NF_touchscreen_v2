@@ -21,7 +21,12 @@ const textVariants = {
   }),
 }
 
-const STRIP_ITEMS = ['Real-Time Detection', 'Live Data Signals', 'Broadcast Ready', 'Sponsor Integration']
+const STRIP_ITEMS = [
+  'Official League Data',
+  'Always On Emotional Tracking',
+  'Genius Moment Deal IDs',
+  "Women's Sports Moments",
+]
 
 export default function IdleAttract({ onEngage }: Props) {
   return (
@@ -99,9 +104,9 @@ export default function IdleAttract({ onEngage }: Props) {
           initial="initial"
           animate="animate"
         >
-          Moments That
+          Genius Moments
           <br />
-          <span style={{ color: 'rgba(255,255,255,0.9)' }}>Matter</span>
+          <span style={{ color: 'rgba(255,255,255,0.9)' }}>Explorer</span>
         </motion.h1>
 
         {/* Divider */}
@@ -122,13 +127,14 @@ export default function IdleAttract({ onEngage }: Props) {
             fontSize: 30,
             opacity: 0.65,
             letterSpacing: '0.04em',
+            whiteSpace: 'nowrap',
           }}
           custom={0.5}
           variants={textVariants}
           initial="initial"
           animate="animate"
         >
-          Tap anywhere to explore available Genius Moments packages
+          Tap anywhere to explore examples of Genius Moments Packages
         </motion.p>
 
         {/* Tap indicator */}

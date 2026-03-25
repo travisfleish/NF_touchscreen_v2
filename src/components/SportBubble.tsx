@@ -45,17 +45,17 @@ const SportBubble = forwardRef<HTMLButtonElement, SportBubbleProps>(function Spo
         Math.round((label.length > 10 ? 42 : 54) * Math.min(1, diameter / 300))
       )
   const hubRim = isDimmed
-    ? 'rgba(255,255,255,0.14)'
+    ? 'rgba(255,255,255,0.32)'
     : isHub
       ? 'rgba(255,255,255,0.42)'
       : 'rgba(255,255,255,0.3)'
   const hubInset = isDimmed
-    ? 'rgba(255,255,255,0.08)'
+    ? 'rgba(255,255,255,0.16)'
     : isHub
       ? 'rgba(255,255,255,0.28)'
       : 'rgba(255,255,255,0.22)'
   const hubGlow = isDimmed
-    ? `0 0 28px rgba(0,0,0,0.35), inset 0 0 18px rgba(0,0,0,0.2)`
+    ? `0 0 40px ${glow}, 0 0 18px rgba(0,0,0,0.22), inset 0 0 16px rgba(0,0,0,0.12)`
     : !isPrimaryAction
       ? `0 0 36px rgba(0,0,0,0.45), inset 0 0 20px rgba(0,0,0,0.18)`
       : isHub
@@ -87,8 +87,8 @@ const SportBubble = forwardRef<HTMLButtonElement, SportBubbleProps>(function Spo
         cursor: 'pointer',
         position: 'relative',
         overflow: 'hidden',
-        opacity: isDimmed ? 0.26 : 1,
-        filter: isDimmed ? 'saturate(0.55) brightness(0.88)' : undefined,
+        opacity: isDimmed ? 0.82 : 1,
+        filter: isDimmed ? 'saturate(0.88) brightness(1.02)' : undefined,
         WebkitTapHighlightColor: 'transparent',
       }}
       animate={{
@@ -102,7 +102,6 @@ const SportBubble = forwardRef<HTMLButtonElement, SportBubbleProps>(function Spo
         ease: 'easeInOut',
       }}
       whileTap={{ scale: 0.97 }}
-      whileHover={{ scale: 1.04 }}
     >
       <motion.span
         style={{
@@ -112,12 +111,12 @@ const SportBubble = forwardRef<HTMLButtonElement, SportBubbleProps>(function Spo
           background: 'radial-gradient(circle at 28% 24%, rgba(255,255,255,0.35), rgba(255,255,255,0.02) 58%, transparent 70%)',
         }}
         animate={{
-          opacity: isDimmed ? [0.04, 0.12] : !isPrimaryAction ? 0.2 : [0.34, 0.78],
+          opacity: isDimmed ? 0.14 : !isPrimaryAction ? 0.2 : [0.34, 0.78],
         }}
         transition={{
           duration: PULSE_HALF_S,
           delay: pulseDelay,
-          repeat: isPrimaryAction && !isDimmed ? Infinity : isDimmed ? Infinity : 0,
+          repeat: isPrimaryAction && !isDimmed ? Infinity : 0,
           repeatType: 'reverse',
           ease: 'easeInOut',
         }}
@@ -126,8 +125,10 @@ const SportBubble = forwardRef<HTMLButtonElement, SportBubbleProps>(function Spo
         style={{
           position: 'relative',
           zIndex: 1,
-          color: isDimmed ? 'rgba(255,255,255,0.38)' : '#fff',
-          textShadow: isDimmed ? 'none' : '0 0 28px rgba(180,200,255,0.5)',
+          color: isDimmed ? 'rgba(255,255,255,0.94)' : '#fff',
+          textShadow: isDimmed
+            ? '0 1px 12px rgba(0,0,0,0.55), 0 0 20px rgba(40,60,140,0.35)'
+            : '0 0 28px rgba(180,200,255,0.5)',
         }}
       >
         {label}
