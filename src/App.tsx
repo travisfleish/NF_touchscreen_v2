@@ -75,7 +75,13 @@ const EXPANDED_HUB_DIAMETER = 320
  */
 const SPORT_PARENT_WHEN_THEME_RING_DIAMETER = 200
 /** Moment package bubbles on the sport ring (same size idle vs selected — no shrink on drill-in). */
-const THEME_PACKAGE_RING_BASE = 240
+const THEME_PACKAGE_RING_BASE = 288
+/**
+ * Inner-ring moment bubbles (after a package is selected). Slightly smaller when there are many
+ * moments so horizontal lanes stay on-screen — still large enough for readable type vs older 172/156.
+ */
+const MOMENT_RING_DIAMETER_BASE_FEW = 214
+const MOMENT_RING_DIAMETER_BASE_MANY = 196
 /**
  * Expanded sport hub: rendered at scale 1 with pulse up to 1.09 (see SportBubble).
  * Used for orbit packing + screen bounds — matches on-screen footprint.
@@ -413,7 +419,7 @@ function buildExpandedClusterObstacleCircles(
       const r = orbitSatelliteEffectiveRadiusPx(d)
       circles.push({ x: cx, y: cy, r })
     })
-    const base = momentItems.length > 10 ? 156 : 172
+    const base = momentItems.length > 10 ? MOMENT_RING_DIAMETER_BASE_MANY : MOMENT_RING_DIAMETER_BASE_FEW
     momentItems.forEach((_, i) => {
       const d = momentDiameterForIndex(base, i)
       const off = momentOffsets[i] ?? { x: 0, y: 0 }
@@ -591,7 +597,7 @@ function OrbitConnectorSvg({
     const parentR = parentD / 2
     const parentCircle: Point & { r: number } = { x: px, y: py, r: parentR }
 
-    const baseMoment = momentItems.length > 10 ? 156 : 172
+    const baseMoment = momentItems.length > 10 ? MOMENT_RING_DIAMETER_BASE_MANY : MOMENT_RING_DIAMETER_BASE_FEW
     momentItems.forEach((item, mi) => {
       const off = momentOffsets[mi] ?? { x: 0, y: 0 }
       const cx = px + off.x
@@ -673,7 +679,7 @@ function OrbitConnectorSvg({
         )
       })}
       {expandedSport && expandedCategoryId && selectedThemeRingAnchor && (
-        <AnimatePresence initial={false}>
+        <AnimatePresence>
           {momentItems.map((item, index) => {
             const seg = momentSegments[item.id]
             if (!seg) return null
@@ -824,7 +830,7 @@ export default function App() {
 
   const momentOffsets = useMemo(() => {
     if (!expandedSport || !expandedCategoryId || !momentItems.length) return []
-    const base = momentItems.length > 10 ? 156 : 172
+    const base = momentItems.length > 10 ? MOMENT_RING_DIAMETER_BASE_MANY : MOMENT_RING_DIAMETER_BASE_FEW
     const diameters = momentItems.map((_, i) => momentDiameterForIndex(base, i))
     const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
     const catD = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, catIdx >= 0 ? catIdx : 0)
@@ -1227,7 +1233,8 @@ export default function App() {
                     expandedCategoryId &&
                     selectedThemeRingAnchor &&
                     momentItems.map((item, index) => {
-                      const baseDiameter = momentItems.length > 10 ? 156 : 172
+                      const baseDiameter =
+                        momentItems.length > 10 ? MOMENT_RING_DIAMETER_BASE_MANY : MOMENT_RING_DIAMETER_BASE_FEW
                       const bubbleDiameter = momentDiameterForIndex(baseDiameter, index)
                       const offset = momentOffsets[index] ?? { x: 0, y: 0 }
                       const orbitStartDelay = MOMENTS_START_AFTER_S + index * 0.045

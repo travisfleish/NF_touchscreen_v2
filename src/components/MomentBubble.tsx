@@ -81,24 +81,43 @@ interface MomentBubbleProps {
   onTap: () => void
 }
 
-function labelFontSizePx(label: string, diameter: number): number {
+function labelFontSizePx(label: string, diameter: number, layer: MomentBubbleLayer): number {
   const words = label.trim().split(/\s+/).filter(Boolean)
   const longestWordLen = words.length ? Math.max(...words.map((w) => w.length)) : label.length
+  /** `diameter / 204` maps ring bubbles (~214–296px) to a comfortable body size. */
   const scale = diameter / 204
   let base: number
-  if (longestWordLen <= 10) base = 22
-  else if (longestWordLen <= 13) base = 20
-  else if (longestWordLen <= 16) base = 18
-  else base = 16
-  /** Slightly smaller body text so “Moment Package:” / “Moment:” + label fit comfortably. */
-  const scaled = Math.round(base * scale * 0.88)
-  /** Keep longest word on one line (no mid-word wrap); ~0.56 ≈ avg glyph width for this font weight. */
-  const maxByLongestWord = Math.floor((diameter * 0.76) / (longestWordLen * 0.56))
-  return Math.max(11, Math.min(scaled, maxByLongestWord))
+  if (longestWordLen <= 10) base = 25
+  else if (longestWordLen <= 13) base = 23
+  else if (longestWordLen <= 16) base = 20
+  else base = 18
+  const scaled = Math.round(base * scale * 0.93)
+  /**
+   * Keep longest word on one line — usable width ~82% of diameter (padding + 94% text block).
+   * Slightly tighter glyph factor so we don’t under-size large bubbles.
+   */
+  const maxByLongestWord = Math.floor((diameter * 0.82) / (longestWordLen * 0.52))
+  let raw = Math.max(12, Math.min(scaled, maxByLongestWord))
+  /** Theme ring (moment package) — body slightly smaller than inner “Moment” satellites. */
+  if (layer === 'category') {
+    raw = Math.max(12, Math.round(raw * 0.94))
+  }
+  return raw
 }
 
 function layerTitleFontSizePx(diameter: number): number {
-  return Math.max(12, Math.round(diameter * 0.072))
+  /** “Moment Package:” / “Moment:” — ~9.1% of bubble width, floor 14px. */
+  return Math.max(14, Math.round(diameter * 0.091))
+}
+
+/** Space between “Moment Package:” / “Moment:” and the label — must live in plain `style` (not motion `animate`); animated gap often doesn’t apply. */
+function headerBodyGapPx(diameter: number): number {
+  return Math.max(22, Math.round(diameter * 0.1))
+}
+
+/** Between the two lines of the green header (“Moment” / “Package:” or “Moment” / “:”). */
+function titleLineGapPx(diameter: number): number {
+  return Math.max(2, Math.round(diameter * 0.014))
 }
 
 const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function MomentBubble(
@@ -117,8 +136,12 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
   ref
 ) {
   const layerTitle = layer === 'category' ? 'Moment Package:' : 'Moment:'
-  const fontSize = labelFontSizePx(label, diameter)
+  const fontSize = labelFontSizePx(label, diameter, layer)
   const titleFontSize = layerTitleFontSizePx(diameter)
+  const titleLineGap = titleLineGapPx(diameter)
+  const headerBodyGap = headerBodyGapPx(diameter)
+  const padV = Math.max(8, Math.round(diameter * 0.036))
+  const padH = Math.max(10, Math.round(diameter * 0.046))
   const isParentTheme = layer === 'category' && variant === 'parent'
   const tier: OrbitTier = isParentTheme ? PARENT_ORBIT : LAYER[layer]
   const highlightOpacity = isDimmed
@@ -186,7 +209,7 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
         boxShadow: resolvedBoxShadow,
         filter: subduedFilter,
         color: '#fff',
-        padding: '12px 16px',
+        padding: `${padV}px ${padH}px`,
         textAlign: 'center',
         cursor: 'pointer',
         position: 'relative',
@@ -219,7 +242,6 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
       />
       <motion.span
         animate={{
-          gap: Math.max(8, Math.round(diameter * 0.034)),
           y: -Math.round(diameter * 0.03),
         }}
         transition={SIZE_TRANSITION}
@@ -230,38 +252,55 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          maxWidth: '92%',
+          maxWidth: '94%',
           wordBreak: 'normal',
           overflowWrap: 'normal',
           hyphens: 'none',
         }}
       >
+        {/* fontSize in `style` only — animated fontSize on nested motion nodes often never hits the DOM; copy inherits Tailwind button `font-size: 100%` (~16px). */}
         <motion.span
           animate={{
-            fontSize: titleFontSize,
             opacity: isDimmed ? 0.45 : isPeripheral ? 0.72 : 0.92,
           }}
           transition={SIZE_TRANSITION}
           style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            flexShrink: 0,
             fontFamily: 'var(--font-header)',
             fontWeight: 600,
             letterSpacing: '0.02em',
-            lineHeight: 1.15,
-            color: isDimmed ? 'rgba(255,255,255,0.42)' : isPeripheral ? 'rgba(255,255,255,0.85)' : '#fff',
+            lineHeight: 1.2,
+            color: isDimmed
+              ? 'rgba(225, 255, 103, 0.42)'
+              : isPeripheral
+                ? 'rgba(225, 255, 103, 0.85)'
+                : '#e1ff67',
           }}
         >
-          {layerTitle}
+          {layer === 'category' ? (
+            <>
+              <span style={{ fontSize: titleFontSize }}>Moment</span>
+              <span style={{ fontSize: titleFontSize, marginTop: titleLineGap }}>Package:</span>
+            </>
+          ) : (
+            <span style={{ fontSize: titleFontSize }}>Moment:</span>
+          )}
         </motion.span>
         <motion.span
           animate={{
-            fontSize,
             opacity: isDimmed ? 0.4 : isPeripheral ? 0.82 : 1,
           }}
           transition={SIZE_TRANSITION}
           style={{
+            fontSize,
+            display: 'block',
+            marginTop: headerBodyGap,
             fontFamily: 'var(--font-body)',
             fontWeight: 500,
-            lineHeight: 1.18,
+            lineHeight: 1.25,
             letterSpacing: '-0.01em',
             textAlign: 'center',
             color: isDimmed ? 'rgba(255,255,255,0.4)' : isPeripheral ? 'rgba(255,255,255,0.82)' : '#fff',
