@@ -91,6 +91,8 @@ const ORBIT_GAP_PX = 10
 const MOMENTS_ORBIT_DELAY_S = 0.12
 /** Moments begin after hub finishes moving to center */
 const MOMENTS_START_AFTER_S = SPORT_EXPAND_DURATION_S + MOMENTS_ORBIT_DELAY_S
+/** Fade when swapping moment packages so satellites don’t snap off */
+const MOMENT_PACKAGE_EXIT_FADE_S = 0.4
 const IDLE_EVENTS = ['touchstart', 'mousedown', 'keydown'] as const
 
 /** Satellite: hover 1.02 + small cushion for micro-orbit drift so layouts don’t touch. */
@@ -670,34 +672,43 @@ function OrbitConnectorSvg({
           />
         )
       })}
-      {expandedSport &&
-        expandedCategoryId &&
-        selectedThemeRingAnchor &&
-        momentItems.map((item, index) => {
-          const seg = momentSegments[item.id]
-          if (!seg) return null
-          const inset = orbitConnectorEndInset(MOMENT_LINE_STROKE_USER)
-          const drawn = insetSegmentEndpoints(seg, inset, inset)
-          if (!drawn) return null
-          const staggerDelay = MOMENTS_START_AFTER_S + index * 0.045
-          return (
-            <motion.path
-              key={`moment-conn-${item.id}`}
-              d={`M ${drawn.x1} ${drawn.y1} L ${drawn.x2} ${drawn.y2}`}
-              fill="none"
-              stroke="rgba(200, 235, 255, 0.95)"
-              strokeWidth={MOMENT_LINE_STROKE_USER}
-              strokeLinecap="butt"
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 1 }}
-              transition={{
-                ...momentLineTransition,
-                pathLength: { ...momentLineTransition.pathLength, delay: staggerDelay },
-                opacity: { ...momentLineTransition.opacity, delay: staggerDelay },
-              }}
-            />
-          )
-        })}
+      {expandedSport && expandedCategoryId && selectedThemeRingAnchor && (
+        <AnimatePresence initial={false}>
+          {momentItems.map((item, index) => {
+            const seg = momentSegments[item.id]
+            if (!seg) return null
+            const inset = orbitConnectorEndInset(MOMENT_LINE_STROKE_USER)
+            const drawn = insetSegmentEndpoints(seg, inset, inset)
+            if (!drawn) return null
+            const staggerDelay = MOMENTS_START_AFTER_S + index * 0.045
+            return (
+              <motion.path
+                key={`${expandedCategoryId}-moment-conn-${item.id}`}
+                d={`M ${drawn.x1} ${drawn.y1} L ${drawn.x2} ${drawn.y2}`}
+                fill="none"
+                stroke="rgba(200, 235, 255, 0.95)"
+                strokeWidth={MOMENT_LINE_STROKE_USER}
+                strokeLinecap="butt"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                exit={{
+                  pathLength: 0,
+                  opacity: 0,
+                  transition: {
+                    pathLength: { duration: MOMENT_PACKAGE_EXIT_FADE_S * 0.85, ease: 'easeIn' },
+                    opacity: { duration: MOMENT_PACKAGE_EXIT_FADE_S, ease: 'easeIn' },
+                  },
+                }}
+                transition={{
+                  ...momentLineTransition,
+                  pathLength: { ...momentLineTransition.pathLength, delay: staggerDelay },
+                  opacity: { ...momentLineTransition.opacity, delay: staggerDelay },
+                }}
+              />
+            )
+          })}
+        </AnimatePresence>
+      )}
     </svg>
   )
 }
@@ -1211,7 +1222,7 @@ export default function App() {
                     })}
                 </AnimatePresence>
 
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                   {expandedSport &&
                     expandedCategoryId &&
                     selectedThemeRingAnchor &&
@@ -1223,34 +1234,29 @@ export default function App() {
 
                       return (
                         <motion.div
-                          key={`orbit-drift-moment-${item.id}`}
+                          key={`${expandedCategoryId}-orbit-moment-${item.id}`}
                           style={{
                             position: 'absolute',
                             left: selectedThemeRingAnchor.x + offset.x,
                             top: selectedThemeRingAnchor.y + offset.y,
                             zIndex: 34,
                           }}
-                          animate={{ x: 0, y: 0 }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1, x: 0, y: 0 }}
+                          exit={{
+                            opacity: 0,
+                            transition: { duration: MOMENT_PACKAGE_EXIT_FADE_S, ease: 'easeIn' },
+                          }}
                           transition={{
-                            duration: 0.25,
-                            repeat: 0,
-                            ease: 'easeInOut',
+                            opacity: { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: orbitStartDelay },
+                            x: { duration: 0.25, repeat: 0, ease: 'easeInOut' },
+                            y: { duration: 0.25, repeat: 0, ease: 'easeInOut' },
                           }}
                         >
                           <motion.div
-                            key={`moment-${item.id}`}
                             transformTemplate={(_, generated) => `translate(-50%, -50%) ${generated}`}
                             style={{
                               position: 'relative',
-                            }}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{
-                              opacity: 0,
-                              transition: { duration: 0.2, ease: 'easeIn' },
-                            }}
-                            transition={{
-                              opacity: { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: orbitStartDelay },
                             }}
                           >
                             <MomentBubble
