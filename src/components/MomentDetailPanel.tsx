@@ -4,9 +4,17 @@ import { SportMoment } from '../data/sportsData'
 interface MomentDetailPanelProps {
   moment: SportMoment
   onClose: () => void
+  /** Dimmed area outside the card — defaults to `onClose` if omitted. */
+  onBackdropDismiss?: () => void
 }
 
-export default function MomentDetailPanel({ moment, onClose }: MomentDetailPanelProps) {
+export default function MomentDetailPanel({
+  moment,
+  onClose,
+  onBackdropDismiss,
+}: MomentDetailPanelProps) {
+  const dismissBackdrop = onBackdropDismiss ?? onClose
+
   return (
     <motion.div
       style={{
@@ -23,7 +31,10 @@ export default function MomentDetailPanel({ moment, onClose }: MomentDetailPanel
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.26, ease: 'easeOut' }}
-      onClick={onClose}
+      onClick={dismissBackdrop}
+      onTouchStart={(e) => {
+        if (e.target === e.currentTarget) dismissBackdrop()
+      }}
     >
       <motion.div
         style={{
@@ -81,6 +92,7 @@ export default function MomentDetailPanel({ moment, onClose }: MomentDetailPanel
             fontFamily: 'var(--font-header)',
             maxWidth: 860,
             position: 'relative',
+            whiteSpace: 'pre-line',
           }}
         >
           <span

@@ -87,6 +87,7 @@ export default function MomentsTextCarousel({ moments, onSelect, sport = 'NBA', 
                   fontSize: 28,
                   letterSpacing: '-0.01em',
                   color: isActive ? '#ffffff' : 'rgba(255,255,255,0.9)',
+                  whiteSpace: 'pre-line',
                 }}
               >
                 {moment.name}

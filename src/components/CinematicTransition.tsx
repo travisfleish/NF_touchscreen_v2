@@ -318,6 +318,7 @@ export default function CinematicTransition({ moment, onComplete }: Props) {
             letterSpacing: '-0.01em',
             color: 'rgba(255,255,255,0.92)',
             textShadow: '0 2px 24px rgba(0,0,0,0.5)',
+            whiteSpace: 'pre-line',
           }}
         >
           {moment.name}

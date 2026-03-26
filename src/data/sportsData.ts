@@ -180,9 +180,9 @@ export const sportsData: SportData[] = [
             description: '',
           },
           {
-            id: 'semi-final-advancement',
-            name: 'Semi Final Advancement',
-            trigger: 'A team advances to the semi finals',
+            id: 'semifinal-advancement',
+            name: 'Semifinal Advancement',
+            trigger: 'A team advances to the semifinals',
             description: '',
           },
         ],
@@ -193,7 +193,7 @@ export const sportsData: SportData[] = [
         moments: [
           {
             id: 'hat-trick-watch',
-            name: 'Hat Trick Watch',
+            name: 'Hat Trick\nWatch',
             trigger: 'A player scores two goals and is one away from a hat trick',
             description: '',
           },

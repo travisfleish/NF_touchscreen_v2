@@ -14,7 +14,7 @@ interface Props {
 
 /** Titles for the two featured tiles (discrete vs thematic moment) */
 const TITLES = {
-  discrete: { headline: 'BUZZER BEATER', subheading: 'The shot that silences arenas. One trigger, maximum impact.' },
+  discrete: { headline: 'BUZZER\nBEATER', subheading: 'The shot that silences arenas. One trigger, maximum impact.' },
   thematic: { headline: 'CONTROVERSY', subheading: 'The playoff narrative — history made live, moment by moment.' },
 }
 

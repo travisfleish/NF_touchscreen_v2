@@ -56,6 +56,9 @@ function TileBarPattern() {
 export default function MomentTile({ moment, index, onSelect, headline, subheading, categoryLabel, sectionLabel, sport = 'NBA', previewImageUrl: previewImageUrlOverride }: Props) {
   const previewImageUrl = previewImageUrlOverride ?? getPreviewImageUrl(moment.id, sport)
   const centerTitle = headline ?? moment.name
+  const titleMultiline = centerTitle.includes('\n')
+  const bottomTitle = headline ?? moment.name
+  const bottomMultiline = bottomTitle.includes('\n')
 
   return (
     <motion.button
@@ -176,7 +179,7 @@ export default function MomentTile({ moment, index, onSelect, headline, subheadi
             color: '#ffffff',
             lineHeight: 1.1,
             textShadow: '0 2px 24px rgba(0,0,0,0.5)',
-            whiteSpace: 'nowrap',
+            whiteSpace: titleMultiline ? 'pre-line' : 'nowrap',
           }}
         >
           {centerTitle}
@@ -232,10 +235,10 @@ export default function MomentTile({ moment, index, onSelect, headline, subheadi
               letterSpacing: '-0.01em',
               color: '#ffffff',
               lineHeight: 1.1,
-              whiteSpace: 'nowrap',
+              whiteSpace: bottomMultiline ? 'pre-line' : 'nowrap',
             }}
           >
-            {headline ?? moment.name}
+            {bottomTitle}
           </div>
         )}
 

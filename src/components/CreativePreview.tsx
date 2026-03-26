@@ -206,6 +206,9 @@ function BrandedHighlightFrame({ creative, accentColor }: { creative: Creative; 
             background: accentColor,
             color: '#000',
             fontSize: 22,
+            lineHeight: 1.15,
+            textAlign: 'center',
+            whiteSpace: 'pre-line',
             clipPath: 'polygon(12px 0%, calc(100% - 12px) 0%, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0% 50%)',
           }}
         >

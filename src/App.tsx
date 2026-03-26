@@ -940,6 +940,17 @@ export default function App() {
     setExpandedSportId(null)
   }, [expandedCategoryId, selectedMomentId])
 
+  /** Tap empty stage (not a bubble): return to floating sport pickers in one step. */
+  const collapseToSportSelection = useCallback(() => {
+    setExpandedSportId(null)
+    setExpandedCategoryId(null)
+    setSelectedMomentId(null)
+  }, [])
+
+  const showStageBackdropDismiss =
+    hasEngaged &&
+    (expandedSportId !== null || expandedCategoryId !== null || selectedMomentId !== null)
+
   return (
     <OrientationGuard>
       <Stage>
@@ -967,6 +978,23 @@ export default function App() {
                 transition={{ duration: 0.35, ease: 'easeInOut' }}
               >
                 <ExperienceBackground />
+
+                {showStageBackdropDismiss && (
+                  <div
+                    role="presentation"
+                    aria-hidden
+                    onPointerDown={(e) => {
+                      if (e.pointerType === 'mouse' && e.button !== 0) return
+                      collapseToSportSelection()
+                    }}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      zIndex: 24,
+                      touchAction: 'manipulation',
+                    }}
+                  />
+                )}
 
                 {/* Subtle title — bottom-right safe zone (bubbles use center / perimeter; z below bubbles). */}
                 <div
@@ -1318,7 +1346,13 @@ export default function App() {
                 </AnimatePresence>
 
                 <AnimatePresence>
-                  {selectedMoment && <MomentDetailPanel moment={selectedMoment} onClose={() => setSelectedMomentId(null)} />}
+                  {selectedMoment && (
+                    <MomentDetailPanel
+                      moment={selectedMoment}
+                      onClose={() => setSelectedMomentId(null)}
+                      onBackdropDismiss={collapseToSportSelection}
+                    />
+                  )}
                 </AnimatePresence>
               </motion.div>
             )}

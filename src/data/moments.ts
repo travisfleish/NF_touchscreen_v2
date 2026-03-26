@@ -60,7 +60,7 @@ export const moments: Moment[] = [
         id: 'branded-highlight-frame',
         title: 'Social',
         description: 'Cinematic freeze-frame of the game-winning release',
-        preview: { badge: 'BUZZER BEATER', headline: 'Shot Heard Nationwide', note: 'Powered by Genius Sports' },
+        preview: { badge: 'BUZZER\nBEATER', headline: 'Shot Heard Nationwide', note: 'Powered by Genius Sports' },
       },
       {
         id: 'full-takeover',

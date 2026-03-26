@@ -305,7 +305,7 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
       type="button"
       onClick={onTap}
       onTouchStart={onTap}
-      aria-label={`${layerTitle} ${layer === 'category' ? momentPackageDisplayLines(label).join(' ') : label}`}
+      aria-label={`${layerTitle} ${momentPackageDisplayLines(label).join(' ')}`}
       animate={{
         width: diameter,
         height: diameter,
@@ -446,7 +446,7 @@ const MomentBubble = forwardRef<HTMLButtonElement, MomentBubbleProps>(function M
             color: isDimmed ? 'rgba(255,255,255,0.4)' : isPeripheral ? 'rgba(255,255,255,0.82)' : '#fff',
           }}
         >
-          {(layer === 'category' ? momentPackageDisplayLines(label) : [label]).map((line, i) => (
+          {momentPackageDisplayLines(label).map((line, i) => (
             <span key={i} style={{ display: 'block' }}>
               {line}
             </span>
