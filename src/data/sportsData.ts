@@ -266,14 +266,14 @@ export const sportsData: SportData[] = [
           {
             id: 'cinderella-match',
             name: 'Cinderella Match',
-            trigger: 'Match involves a newcomer nation: Curacao, Uzbekistan, or Jordan',
+            trigger: 'Match involves a newcomer nation (i.e. Curacao, Uzbekistan, or Jordan)',
             description: '',
           },
           {
             id: 'cinderella-goal',
             name: 'Cinderella Goal',
             trigger:
-              'A newcomer nation (Curacao, Uzbekistan, or Jordan) scores a goal or records a match win',
+              'A newcomer nation (i.e. Curacao, Uzbekistan, or Jordan) scores a goal or records a match win',
             description: '',
           },
         ],
