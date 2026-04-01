@@ -117,6 +117,42 @@ export const sportsData: SportData[] = [
           },
         ],
       },
+      {
+        id: 'playoff-contention',
+        name: 'Playoff Contention',
+        moments: [
+          {
+            id: 'wild-card-win',
+            name: 'Wild Card Win',
+            trigger: 'A team wins and now is in wild card contention',
+            description: '',
+          },
+          {
+            id: 'bye-secured',
+            name: 'Bye Secured',
+            trigger: 'A team secures first place and a first round bye',
+            description: '',
+          },
+        ],
+      },
+      {
+        id: 'big-gains',
+        name: 'Big Gains',
+        moments: [
+          {
+            id: 'aerial-strike',
+            name: 'Aerial Strike',
+            trigger: 'A passing play of 50 yards or more',
+            description: '',
+          },
+          {
+            id: 'ground-attack',
+            name: 'Ground Attack',
+            trigger: 'A rushing play of 50 yards or more',
+            description: '',
+          },
+        ],
+      },
     ],
   },
   {
@@ -201,6 +237,43 @@ export const sportsData: SportData[] = [
             id: 'all-time-goal-record-chase',
             name: 'All-Time Goal Record Chase',
             trigger: 'A player approaches or surpasses a major scoring milestone',
+            description: '',
+          },
+        ],
+      },
+      {
+        id: 'set-piece-goals',
+        name: 'Set Piece Goals',
+        moments: [
+          {
+            id: 'corner-kick-goal',
+            name: 'Corner Kick Goal',
+            trigger: 'A goal is scored from a corner-kick sequence',
+            description: '',
+          },
+          {
+            id: 'penalty-kick-goal',
+            name: 'Penalty Kick Goal',
+            trigger: 'A penalty kick is converted into a goal',
+            description: '',
+          },
+        ],
+      },
+      {
+        id: 'cinderella-stories',
+        name: 'Cinderella Stories',
+        moments: [
+          {
+            id: 'cinderella-match',
+            name: 'Cinderella Match',
+            trigger: 'Match involves a newcomer nation: Curacao, Uzbekistan, or Jordan',
+            description: '',
+          },
+          {
+            id: 'cinderella-goal',
+            name: 'Cinderella Goal',
+            trigger:
+              'A newcomer nation (Curacao, Uzbekistan, or Jordan) scores a goal or records a match win',
             description: '',
           },
         ],

@@ -45,8 +45,6 @@
 
 @layer base {
   * {
-    /* Touch wall: hide system cursor everywhere */
-    cursor: none !important;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
     -webkit-user-select: none;

@@ -62,7 +62,8 @@ const CATEGORY_DOCK_SLOTS: Point[] = [
   { x: 220, y: 300 },
   { x: 960, y: 200 },
   { x: 1720, y: 300 },
-  { x: 200, y: 540 },
+  /** Keep middle-left lane clear for left-side moment satellites. */
+  { x: 1720, y: 540 },
   /** Right column: y shifted up so perimeter docks stay above bottom-right title. */
   { x: 1720, y: 420 },
   { x: 240, y: 820 },
@@ -169,17 +170,44 @@ function createPackedOrbitOffsets(
 /**
  * Place child nodes to the left and right of the parent only (keeps moments on-screen horizontally).
  */
+type TwoMomentLayoutMode = 'paired-lr' | 'right-arc' | 'left-arc'
+
 function createHorizontalOrbitOffsets(
   count: number,
   diameters: number[],
   parentRadius: number,
-  gap: number
+  gap: number,
+  twoMomentLayout: TwoMomentLayoutMode = 'right-arc'
 ): Point[] {
   if (count <= 0) return []
   const childRadii = diameters.map((d) => orbitSatelliteEffectiveRadiusPx(d))
   const maxCh = maxOf(childRadii)
   const basePolar = parentRadius + maxCh + gap
   const laneStep = 2 * maxCh + gap
+
+  if (count === 2) {
+    if (twoMomentLayout === 'paired-lr') {
+      return [
+        { x: -basePolar, y: 0 },
+        { x: basePolar, y: 0 },
+      ]
+    }
+    if (twoMomentLayout === 'left-arc') {
+      const elevenOClock = (-120 * Math.PI) / 180
+      const nineOClockTight = -(basePolar + laneStep * 0.58)
+      return [
+        { x: Math.cos(elevenOClock) * basePolar, y: Math.sin(elevenOClock) * basePolar },
+        { x: nineOClockTight, y: 0 },
+      ]
+    }
+    const oneOClock = (-30 * Math.PI) / 180
+    const threeOClockTight = basePolar + laneStep * 0.58
+    return [
+      { x: Math.cos(oneOClock) * basePolar, y: Math.sin(oneOClock) * basePolar },
+      { x: threeOClockTight, y: 0 },
+    ]
+  }
+
   return Array.from({ length: count }, (_, i) => {
     const side = i % 2 === 0 ? -1 : 1
     const lane = Math.floor(i / 2)
@@ -497,7 +525,7 @@ function computeDockedSportAnchorsAvoidingCluster(
     { x: 1760, y: 720 },
     { x: 280, y: 1000 },
     { x: 1640, y: 860 },
-    { x: 120, y: 540 },
+    { x: 1800, y: 540 },
     { x: 1800, y: 430 },
     { x: 400, y: 180 },
     { x: 1520, y: 180 },
@@ -845,7 +873,15 @@ export default function App() {
     const catIdx = expandedSport.categories.findIndex((c) => c.id === expandedCategoryId)
     const catD = momentDiameterForIndex(THEME_PACKAGE_RING_BASE, catIdx >= 0 ? catIdx : 0)
     const parentR = orbitSatelliteEffectiveRadiusPx(catD)
-    return createHorizontalOrbitOffsets(momentItems.length, diameters, parentR, ORBIT_GAP_PX)
+    const hasFourPackages = expandedSport.categories.length === 4
+    let twoMomentLayout: TwoMomentLayoutMode = 'right-arc'
+    if (hasFourPackages && momentItems.length === 2) {
+      // 4-package ring ordering from createPackedOrbitOffsets(count=4): top, right, bottom, left.
+      if (catIdx === 0 || catIdx === 2) twoMomentLayout = 'paired-lr'
+      else if (catIdx === 3) twoMomentLayout = 'left-arc'
+      else twoMomentLayout = 'right-arc'
+    }
+    return createHorizontalOrbitOffsets(momentItems.length, diameters, parentR, ORBIT_GAP_PX, twoMomentLayout)
   }, [momentItems, expandedSport, expandedCategoryId])
 
   const categoryOffsets = useMemo(() => {
@@ -897,16 +933,25 @@ export default function App() {
     if (!expandedSportId || !expandedSport || !expandedClusterAnchor) return null
     const obs = buildExpandedClusterObstacleCircles(
       expandedSport,
-      null,
+      expandedCategoryId,
       expandedClusterAnchor,
       categoryOffsets,
-      null,
-      [],
-      []
+      selectedThemeRingAnchor,
+      momentItems,
+      momentOffsets
     )
     if (obs.length === 0) return null
     return computeDockedSportAnchorsAvoidingCluster(sportsData, expandedSportId, PERIPHERAL_ANCHORS, obs)
-  }, [expandedSportId, expandedSport, expandedClusterAnchor, categoryOffsets])
+  }, [
+    expandedSportId,
+    expandedSport,
+    expandedCategoryId,
+    expandedClusterAnchor,
+    categoryOffsets,
+    selectedThemeRingAnchor,
+    momentItems,
+    momentOffsets,
+  ])
 
   const experienceRef = useRef<HTMLDivElement>(null)
 
