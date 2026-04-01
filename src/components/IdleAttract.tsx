@@ -23,7 +23,7 @@ const textVariants = {
 
 const STRIP_ITEMS = [
   'Official League Data',
-  'Always On Emotional Tracking',
+  'Always-On Emotional Tracking',
   'Genius Moment Deal IDs',
   "Women's Sports Moments",
 ]
@@ -104,7 +104,7 @@ export default function IdleAttract({ onEngage }: Props) {
           initial="initial"
           animate="animate"
         >
-          Genius Moments
+          Genius Moment
           <br />
           <span style={{ color: 'rgba(255,255,255,0.9)' }}>Explorer</span>
         </motion.h1>
@@ -134,7 +134,7 @@ export default function IdleAttract({ onEngage }: Props) {
           initial="initial"
           animate="animate"
         >
-          Tap anywhere to explore examples of Genius Moments Packages
+          Tap anywhere to explore examples of Genius Moment Packages
         </motion.p>
       </div>
 

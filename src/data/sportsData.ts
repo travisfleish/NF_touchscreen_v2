@@ -44,7 +44,7 @@ export const sportsData: SportData[] = [
           {
             id: 'elite-8',
             name: 'Elite 8',
-            trigger: 'Teams advance to the Elite 8 stage',
+            trigger: 'Teams advance to the Elite 8',
             description: '',
           },
           {
@@ -94,7 +94,7 @@ export const sportsData: SportData[] = [
           {
             id: 'historic-matchups',
             name: 'Historic Matchups',
-            trigger: 'Matchups between teams with established competitive history',
+            trigger: 'Matchups between teams with established history',
             description: '',
           },
         ],
@@ -106,13 +106,13 @@ export const sportsData: SportData[] = [
           {
             id: 'live-betting-swings',
             name: 'Live Betting Swings',
-            trigger: 'Significant real-time changes in win probability or game state',
+            trigger: 'Significant real-time changes in win probability or game state via GeniusIQ',
             description: '',
           },
           {
             id: 'odds-shifts',
             name: 'Odds Shifts',
-            trigger: 'Notable movement in betting odds during the game',
+            trigger: 'Notable movement in betting odds during the game via GeniusIQ',
             description: '',
           },
         ],

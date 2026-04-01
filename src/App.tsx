@@ -1018,7 +1018,7 @@ export default function App() {
                       textShadow: '0 1px 18px rgba(0,0,40,0.55)',
                     }}
                   >
-                    Genius Moments Explorer
+                    Genius Moment Explorer
                   </span>
                 </div>
 
